@@ -22,20 +22,6 @@ export interface CashierRow {
   salesSharePct: number | null;
 }
 
-export interface DailyRow {
-  date: string; // ISO date
-  sales: number;
-  childVisits: number;
-  cafeRevenue: number;
-  revenuePerChild: number | null;
-}
-
-export interface HourlyRow {
-  hour: number;
-  sales: number;
-  childEntries: number;
-}
-
 export interface ReconciliationRow {
   label: string;
   a: number;
@@ -53,10 +39,6 @@ export interface UnclassifiedProduct {
 }
 
 export interface KpiResult {
-  hasInvoiceLevelData: boolean;
-  dateRangeAvailable: boolean;
-  timeAvailable: boolean;
-
   // Core KPIs
   totalSalesInclVat: Metric;
   netSales: Metric;
@@ -70,7 +52,6 @@ export interface KpiResult {
   averageTransactionValue: Metric;
   transactions: Metric;
   returnsQuantity: Metric;
-  returnsValue: Metric;
   // Rewaa's own figures (from the invoice-summary aggregate report), shown
   // as informational metrics — NOT used as "net profit" anywhere; Operating
   // Profit (see profit.ts) is computed separately from entered expenses.
@@ -95,14 +76,12 @@ export interface KpiResult {
   byProduct: BreakdownRow[];
   byPaymentMethod: BreakdownRow[];
   ticketMix: BreakdownRow[];
-
-  dailySeries: DailyRow[];
-  hourlySeries: HourlyRow[];
+  // Per-category product rankings (e.g. cafe-only top sellers) — distinct
+  // from `byProduct`, which mixes every category together.
+  byCategoryProducts: Partial<Record<ProductCategory, BreakdownRow[]>>;
 
   reconciliation: ReconciliationRow[];
   unclassifiedProducts: UnclassifiedProduct[];
   unknownCashiers: string[];
   missingFields: string[];
-
-  categoryRevenue: Partial<Record<ProductCategory, number>>;
 }

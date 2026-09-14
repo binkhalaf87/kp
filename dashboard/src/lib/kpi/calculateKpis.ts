@@ -88,9 +88,6 @@ export function calculateKpis(
   const unknownCashiers = new Set<string>();
 
   const result: KpiResult = {
-    hasInvoiceLevelData: false,
-    dateRangeAvailable: false,
-    timeAvailable: false,
     totalSalesInclVat: null,
     netSales: null,
     totalChildVisits: null,
@@ -103,7 +100,6 @@ export function calculateKpis(
     averageTransactionValue: null,
     transactions: null,
     returnsQuantity: null,
-    returnsValue: null,
     cogs: null,
     grossProfit: null,
     vatTotal: null,
@@ -122,13 +118,11 @@ export function calculateKpis(
     byProduct: [],
     byPaymentMethod: [],
     ticketMix: [],
-    dailySeries: [],
-    hourlySeries: [],
+    byCategoryProducts: {},
     reconciliation: [],
     unclassifiedProducts: [],
     unknownCashiers: [],
     missingFields: [],
-    categoryRevenue: {},
   };
 
   // --- Invoice summary (single aggregate row: totals only, no line items) ---
@@ -188,6 +182,9 @@ export function calculateKpis(
     const categoryMap = new Map<string, CategoryAgg>();
     const productMap = new Map<string, CategoryAgg>();
     const ticketMixMap = new Map<string, CategoryAgg>();
+    // Per-category product breakdown (e.g. cafe-only top sellers) — distinct
+    // from productMap, which mixes every category together.
+    const categoryProductMaps = new Map<string, Map<string, CategoryAgg>>();
 
     let paidTicketEntries = 0;
     let secondVisitEntries = 0;
@@ -227,6 +224,12 @@ export function calculateKpis(
       productMap.set(productName, prodAgg);
 
       addToAgg(getCategoryAgg(category), quantity, unitPrice);
+
+      if (!categoryProductMaps.has(category)) categoryProductMaps.set(category, new Map());
+      const catProductMap = categoryProductMaps.get(category)!;
+      const catProdAgg = catProductMap.get(productName) ?? emptyAgg();
+      addToAgg(catProdAgg, quantity, unitPrice);
+      catProductMap.set(productName, catProdAgg);
 
       if (category === "TICKET") {
         paidTicketEntries += quantity;
@@ -307,8 +310,11 @@ export function calculateKpis(
         : null;
     result.ticketMix = toBreakdown(ticketMixMap, ticketMixTotal);
 
-    result.categoryRevenue = Object.fromEntries(
-      Object.entries(categoryAgg).map(([k, v]) => [k, v.allPriced ? v.revenue : 0])
+    result.byCategoryProducts = Object.fromEntries(
+      Array.from(categoryProductMaps.entries()).map(([category, map]) => {
+        const categoryTotal = getCategoryAgg(category).allPriced ? getCategoryAgg(category).revenue : null;
+        return [category, toBreakdown(map, categoryTotal)];
+      })
     ) as never;
 
     distinctProductsInCustomerFile = productMap.size;

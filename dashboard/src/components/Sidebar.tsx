@@ -6,11 +6,6 @@ import clsx from "clsx";
 
 const NAV_ITEMS = [
   { href: "/", label: "لوحة الإدارة" },
-  { href: "/sales", label: "المبيعات" },
-  { href: "/children", label: "الأطفال والتذاكر" },
-  { href: "/coffee", label: "KP Coffee" },
-  { href: "/products", label: "المنتجات" },
-  { href: "/cashiers", label: "الكاشير" },
   { href: "/payments", label: "طرق الدفع" },
   { href: "/expenses", label: "المصروفات والربحية" },
   { href: "/targets", label: "الأهداف" },

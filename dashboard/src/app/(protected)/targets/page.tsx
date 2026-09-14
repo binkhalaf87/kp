@@ -9,9 +9,11 @@ import { getTargetStatus } from "@/lib/kpi/targetStatus";
 import { formatSar } from "@/lib/utils/format";
 import type { Targets } from "@/lib/types";
 
+// "هدف المبيعات اليومي" is deliberately not shown: no Rewaa report we've
+// seen exposes a per-day breakdown, so its "actual" could never be more
+// than a permanent "—" — an indicator with no possible data source.
 const FIELDS: { key: keyof Targets; label: string }[] = [
   { key: "monthlySalesTarget", label: "هدف المبيعات الشهري" },
-  { key: "dailySalesTarget", label: "هدف المبيعات اليومي" },
   { key: "childVisitTarget", label: "هدف عدد زيارات الأطفال" },
   { key: "cafeRevenuePerChildTarget", label: "هدف إيراد الكوفي لكل طفل" },
   { key: "averageTicketTarget", label: "هدف متوسط قيمة الفاتورة" },
@@ -27,7 +29,7 @@ export default function TargetsPage() {
 
   const actuals: Record<keyof Targets, number | null> = {
     monthlySalesTarget: kpis.totalSalesInclVat,
-    dailySalesTarget: kpis.dailySeries.length > 0 ? kpis.dailySeries[kpis.dailySeries.length - 1].sales : null,
+    dailySalesTarget: null,
     childVisitTarget: kpis.totalChildVisits,
     cafeRevenuePerChildTarget: kpis.cafeRevenuePerChild,
     averageTicketTarget: kpis.averageTransactionValue,

@@ -118,4 +118,27 @@ export const REPORT_SCHEMAS: ReportSchemaDef[] = [
     signature: ["اجمالي المنتجات", "متوسط مبيعات المنتجات"],
     hintGroups: [["المنتج", "product"], ["المبيعات", "sales"]],
   },
+  {
+    // Confirmed real headers (Rewaa's product-catalog export, "simpleProducts.csv"
+    // inside its products_export zip): Product Name, Product SKU, BarCode,
+    // Category, Cost, "1 Quantity" (current STOCK, not sold quantity),
+    // "1 Buy Price", "1 Retail Price", "1 WholeSale Price", "1 Online Price".
+    // This is master product data, not a sales report — it never feeds the
+    // KPI totals, only supplies a real per-product price/cost to unlock
+    // revenue splits (see src/lib/pricing/productCatalog.ts).
+    reportType: "PRODUCT_CATALOG_SIMPLE",
+    labelAr: "كتالوج المنتجات (بسيطة)",
+    signature: ["Product SKU"],
+    hintGroups: [["Product Name", "Product SKU"], ["Retail Price"]],
+  },
+  {
+    // Confirmed real headers (Rewaa's "variableProducts.csv"): Product Name,
+    // Option 1, "Option 1 value", Variant Name, Variant SKU, "1 Retail Price",
+    // etc. "Variant Name" is the exact product name string that appears in
+    // "منتجات العملاء" for variable products (e.g. ticket tiers/durations).
+    reportType: "PRODUCT_CATALOG_VARIABLE",
+    labelAr: "كتالوج المنتجات (متعددة الخيارات)",
+    signature: ["Variant SKU"],
+    hintGroups: [["Variant Name", "Option 1"], ["Retail Price"]],
+  },
 ];

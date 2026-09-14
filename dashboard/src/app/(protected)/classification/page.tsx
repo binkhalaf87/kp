@@ -6,7 +6,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { useDashboardStore } from "@/lib/store";
 import { buildProductMapping, effectiveCategory } from "@/lib/classification/productClassifier";
 import { extractCustomerProductRows } from "@/lib/parsers/extractors";
+import { buildProductCatalogMap } from "@/lib/pricing/productCatalog";
 import { PRODUCT_CATEGORY_LABELS_AR, type ProductCategory } from "@/lib/types";
+import { formatSar, formatNumber, UNAVAILABLE_LABEL } from "@/lib/utils/format";
 
 const CATEGORIES = Object.keys(PRODUCT_CATEGORY_LABELS_AR) as ProductCategory[];
 
@@ -16,6 +18,9 @@ export default function ClassificationPage() {
   const upsertProductMapping = useDashboardStore((s) => s.upsertProductMapping);
 
   const productsFile = imports.find((f) => f.reportType === "CUSTOMER_PRODUCTS");
+  const hasCatalog = imports.some(
+    (f) => f.reportType === "PRODUCT_CATALOG_SIMPLE" || f.reportType === "PRODUCT_CATALOG_VARIABLE"
+  );
 
   const productNames = useMemo(() => {
     if (!productsFile) return [];
@@ -25,6 +30,8 @@ export default function ClassificationPage() {
     }
     return Array.from(names).sort();
   }, [productsFile]);
+
+  const catalog = useMemo(() => buildProductCatalogMap(imports), [imports]);
 
   if (!productsFile) {
     return (
@@ -41,7 +48,9 @@ export default function ClassificationPage() {
         title="تصنيف المنتجات"
         description={
           '"مجموعة" في اسم التذكرة تصنيف سعري فقط — كل وحدة مباعة = دخول طفل واحد. ' +
-          "تقرير \"منتجات العملاء\" لا يحتوي على سعر لكل منتج — أدخل السعر يدويًا هنا لفتح حسابات الإيراد (إيراد التذاكر، الكوفي، إلخ)."
+          (hasCatalog
+            ? "تم استيراد الأسعار تلقائيًا من كتالوج منتجات رواء (عمود \"السعر من رواء\"). عدّل \"سعر الوحدة اليدوي\" فقط لتجاوز سعر منتج معيّن."
+            : "تقرير \"منتجات العملاء\" لا يحتوي على سعر لكل منتج — أدخل السعر يدويًا هنا، أو ارفع ملفي كتالوج المنتجات من رواء (simpleProducts.csv و variableProducts.csv) لملء الأسعار تلقائيًا.")
         }
       />
 
@@ -55,13 +64,17 @@ export default function ClassificationPage() {
               <th>يُحتسب كدخول طفل؟</th>
               <th>يُحتسب كزيارة ثانية؟</th>
               <th>القسم</th>
-              <th>سعر الوحدة (ر.س)</th>
+              <th>السعر من رواء</th>
+              <th>التكلفة</th>
+              <th>المخزون الحالي</th>
+              <th>سعر الوحدة اليدوي (ر.س)</th>
             </tr>
           </thead>
           <tbody>
             {productNames.map((name) => {
               const mapping = productMappings[name] ?? buildProductMapping(name);
               const category = effectiveCategory(mapping);
+              const catalogEntry = catalog.get(name) ?? null;
               return (
                 <tr key={name} className={mapping.needsReview && !mapping.manualCategory ? "bg-amber-50" : undefined}>
                   <td className="font-bold">{name}</td>
@@ -110,12 +123,21 @@ export default function ClassificationPage() {
                       className="border border-[#e3e7f5] rounded-lg px-2 py-1 text-sm w-32"
                     />
                   </td>
+                  <td className="text-sm">
+                    {catalogEntry?.retailPrice != null ? formatSar(catalogEntry.retailPrice) : UNAVAILABLE_LABEL}
+                  </td>
+                  <td className="text-sm">
+                    {catalogEntry?.cost != null ? formatSar(catalogEntry.cost) : UNAVAILABLE_LABEL}
+                  </td>
+                  <td className="text-sm">
+                    {catalogEntry?.stockQuantity != null ? formatNumber(catalogEntry.stockQuantity) : UNAVAILABLE_LABEL}
+                  </td>
                   <td>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder="غير محدد"
+                      placeholder={catalogEntry?.retailPrice != null ? String(catalogEntry.retailPrice) : "غير محدد"}
                       value={mapping.unitPrice ?? ""}
                       onChange={(e) =>
                         upsertProductMapping({

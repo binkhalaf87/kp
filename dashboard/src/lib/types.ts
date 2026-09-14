@@ -10,6 +10,8 @@ export type ReportType =
   | "SALES_BY_PAYMENT_METHOD" // المبيعات من طرق الدفع
   | "SALES_BY_PERIOD" // ملخص المبيعات حسب الفترة الزمنية
   | "PRODUCT_PERFORMANCE_SUMMARY" // تقرير أداء المنتج
+  | "PRODUCT_CATALOG_SIMPLE" // كتالوج المنتجات (بسيطة) — Rewaa's "simpleProducts.csv" export
+  | "PRODUCT_CATALOG_VARIABLE" // كتالوج المنتجات (متعددة الخيارات) — Rewaa's "variableProducts.csv" export
   | "UNKNOWN";
 
 export const REPORT_TYPE_LABELS_AR: Record<ReportType, string> = {
@@ -21,6 +23,8 @@ export const REPORT_TYPE_LABELS_AR: Record<ReportType, string> = {
   SALES_BY_PAYMENT_METHOD: "المبيعات من طرق الدفع",
   SALES_BY_PERIOD: "ملخص المبيعات حسب الفترة الزمنية",
   PRODUCT_PERFORMANCE_SUMMARY: "تقرير أداء المنتج",
+  PRODUCT_CATALOG_SIMPLE: "كتالوج المنتجات (بسيطة)",
+  PRODUCT_CATALOG_VARIABLE: "كتالوج المنتجات (متعددة الخيارات)",
   UNKNOWN: "غير معروف",
 };
 

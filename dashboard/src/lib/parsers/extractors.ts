@@ -217,6 +217,92 @@ export function extractByCustomerRows(file: ImportedFile): EntityRow[] {
     .filter((r): r is EntityRow => r !== null);
 }
 
+export interface ProductCatalogRow {
+  productName: string;
+  sku: string | null;
+  category: string | null;
+  cost: number | null;
+  stockQuantity: number | null;
+  retailPrice: number | null;
+  wholesalePrice: number | null;
+  onlinePrice: number | null;
+  buyPrice: number | null;
+}
+
+/**
+ * Rewaa's product-catalog export ("simpleProducts.csv" inside its
+ * products_export zip) — master product data (name, cost, retail price,
+ * current stock), one row per simple (non-variant) product. Not a sales
+ * report: never used for KPI totals, only as a real price/cost source for
+ * products that also appear in "منتجات العملاء".
+ */
+export function extractProductCatalogSimple(file: ImportedFile): ProductCatalogRow[] {
+  const cols = file.columns;
+  const nameCol = findExactColumn(cols, ["Product Name"]);
+  const skuCol = findExactColumn(cols, ["Product SKU"]);
+  const categoryCol = findExactColumn(cols, ["Category"]);
+  const costCol = findExactColumn(cols, ["Cost"]);
+  const stockCol = findExactColumn(cols, ["1 Quantity"]);
+  const retailCol = findExactColumn(cols, ["1 Retail Price"]);
+  const wholesaleCol = findExactColumn(cols, ["1 WholeSale Price"]);
+  const onlineCol = findExactColumn(cols, ["1 Online Price"]);
+  const buyCol = findExactColumn(cols, ["1 Buy Price"]);
+
+  return file.rows
+    .map((row) => {
+      const productName = getText(row, nameCol);
+      if (!productName) return null;
+      return {
+        productName,
+        sku: getText(row, skuCol),
+        category: getText(row, categoryCol),
+        cost: getNum(row, costCol),
+        stockQuantity: getNum(row, stockCol),
+        retailPrice: getNum(row, retailCol),
+        wholesalePrice: getNum(row, wholesaleCol),
+        onlinePrice: getNum(row, onlineCol),
+        buyPrice: getNum(row, buyCol),
+      };
+    })
+    .filter((r): r is ProductCatalogRow => r !== null);
+}
+
+/**
+ * Rewaa's "variableProducts.csv" — one row per VARIANT (e.g. each ticket
+ * tier/duration combo). "Variant Name" is the exact product name string
+ * used in "منتجات العملاء" for these products (e.g. "تذكرة لعب فردي-ساعة").
+ */
+export function extractProductCatalogVariable(file: ImportedFile): ProductCatalogRow[] {
+  const cols = file.columns;
+  const nameCol = findExactColumn(cols, ["Variant Name"]);
+  const skuCol = findExactColumn(cols, ["Variant SKU"]);
+  const categoryCol = findExactColumn(cols, ["Category"]);
+  const costCol = findExactColumn(cols, ["Cost"]);
+  const stockCol = findExactColumn(cols, ["1 Quantity"]);
+  const retailCol = findExactColumn(cols, ["1 Retail Price"]);
+  const wholesaleCol = findExactColumn(cols, ["1 WholeSale Price"]);
+  const onlineCol = findExactColumn(cols, ["1 Online Price"]);
+  const buyCol = findExactColumn(cols, ["1 Buy Price"]);
+
+  return file.rows
+    .map((row) => {
+      const productName = getText(row, nameCol);
+      if (!productName) return null;
+      return {
+        productName,
+        sku: getText(row, skuCol),
+        category: getText(row, categoryCol),
+        cost: getNum(row, costCol),
+        stockQuantity: getNum(row, stockCol),
+        retailPrice: getNum(row, retailCol),
+        wholesalePrice: getNum(row, wholesaleCol),
+        onlinePrice: getNum(row, onlineCol),
+        buyPrice: getNum(row, buyCol),
+      };
+    })
+    .filter((r): r is ProductCatalogRow => r !== null);
+}
+
 export interface CustomerProductRow {
   customerName: string;
   phone: string | null;

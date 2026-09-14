@@ -10,6 +10,7 @@ import {
   extractPeriodSummary,
   extractProductPerformanceSummary,
 } from "@/lib/parsers/extractors";
+import { buildProductCatalogMap } from "@/lib/pricing/productCatalog";
 import type {
   KpiResult,
   BreakdownRow,
@@ -173,6 +174,10 @@ export function calculateKpis(
   // products) and, where a unit price has been entered, revenue splits. ---
   if (customerProductsFile) {
     const rows = extractCustomerProductRows(customerProductsFile);
+    // Rewaa's own product-catalog export (simple/variable products, if
+    // uploaded) gives a real per-product price — used only when the user
+    // hasn't manually overridden it in the classification page.
+    const catalogPrices = buildProductCatalogMap(imports);
 
     const categoryMap = new Map<string, CategoryAgg>();
     const productMap = new Map<string, CategoryAgg>();
@@ -194,7 +199,7 @@ export function calculateKpis(
       let mapping = productMappings[productName];
       if (!mapping) mapping = buildProductMapping(productName);
       const category = effectiveCategory(mapping);
-      const unitPrice = mapping.unitPrice;
+      const unitPrice = mapping.unitPrice ?? catalogPrices.get(productName)?.retailPrice ?? null;
       const quantity = row.quantity;
 
       if (mapping.needsReview && mapping.manualCategory === null) {

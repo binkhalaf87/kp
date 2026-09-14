@@ -6,19 +6,19 @@ import clsx from "clsx";
 import { BASE_PATH } from "@/lib/basePath";
 
 const NAV_ITEMS = [
-  { href: "/", label: "لوحة الإدارة" },
-  { href: "/sales", label: "المبيعات" },
-  { href: "/children", label: "الأطفال والتذاكر" },
-  { href: "/coffee", label: "KP Coffee" },
-  { href: "/products", label: "المنتجات" },
-  { href: "/cashiers", label: "الكاشير" },
-  { href: "/payments", label: "طرق الدفع" },
-  { href: "/expenses", label: "المصروفات والربحية" },
-  { href: "/targets", label: "الأهداف" },
-  { href: "/data-quality", label: "جودة البيانات" },
-  { href: "/classification", label: "تصنيف المنتجات" },
-  { href: "/import", label: "استيراد تقارير رواء" },
-  { href: "/settings", label: "الإعدادات" },
+  { href: BASE_PATH, label: "لوحة الإدارة" },
+  { href: `${BASE_PATH}/sales`, label: "المبيعات" },
+  { href: `${BASE_PATH}/children`, label: "الأطفال والتذاكر" },
+  { href: `${BASE_PATH}/coffee`, label: "KP Coffee" },
+  { href: `${BASE_PATH}/products`, label: "المنتجات" },
+  { href: `${BASE_PATH}/cashiers`, label: "الكاشير" },
+  { href: `${BASE_PATH}/payments`, label: "طرق الدفع" },
+  { href: `${BASE_PATH}/expenses`, label: "المصروفات والربحية" },
+  { href: `${BASE_PATH}/targets`, label: "الأهداف" },
+  { href: `${BASE_PATH}/data-quality`, label: "جودة البيانات" },
+  { href: `${BASE_PATH}/classification`, label: "تصنيف المنتجات" },
+  { href: `${BASE_PATH}/import`, label: "استيراد تقارير رواء" },
+  { href: `${BASE_PATH}/settings`, label: "الإعدادات" },
 ];
 
 async function handleLogout() {

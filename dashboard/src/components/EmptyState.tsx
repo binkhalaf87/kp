@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BASE_PATH } from "@/lib/basePath";
 
 export function EmptyState({
   title = "لم يتم رفع تقارير رواء بعد",
@@ -15,7 +16,7 @@ export function EmptyState({
         <p className="text-sm text-muted mt-1 max-w-md">{description}</p>
       </div>
       <Link
-        href="/import"
+        href={`${BASE_PATH}/import`}
         className="inline-flex items-center gap-2 rounded-full bg-navy text-white font-bold text-sm px-5 py-2.5 hover:opacity-90 transition"
       >
         رفع التقارير

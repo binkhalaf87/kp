@@ -23,12 +23,11 @@ export default function LoginPage() {
         setError(data.error || "حدث خطأ. حاول مرة أخرى.");
         return;
       }
-      // `next` is set by middleware from `nextUrl.pathname`, which excludes
-      // the basePath — prepend it once here, or the redirect lands outside
-      // the app (e.g. bare "/sales" instead of "/dashboard/sales").
+      // `next` is set by middleware from the full real pathname (already
+      // includes BASE_PATH), so use it as-is.
       const params = new URLSearchParams(window.location.search);
-      const next = params.get("next") || "/";
-      window.location.href = `${BASE_PATH}${next}`;
+      const next = params.get("next") || BASE_PATH;
+      window.location.href = next;
     } finally {
       setLoading(false);
     }

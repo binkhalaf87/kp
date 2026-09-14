@@ -4,5 +4,9 @@
     { "src": "styles.css", "use": "@vercel/static" },
     { "src": "assets/**", "use": "@vercel/static" },
     { "src": "dashboard/package.json", "use": "@vercel/next" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/index.html" },
+    { "handle": "filesystem" }
   ]
 }

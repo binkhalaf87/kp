@@ -7,6 +7,8 @@ import {
   extractByUserRows,
   extractByCustomerRows,
   extractCustomerProductRows,
+  extractPeriodSummary,
+  extractProductPerformanceSummary,
 } from "@/lib/parsers/extractors";
 import type {
   KpiResult,
@@ -74,6 +76,7 @@ export function calculateKpis(
   const customerProductsFile = findFile("CUSTOMER_PRODUCTS");
   const paymentFile = findFile("SALES_BY_PAYMENT_METHOD");
   const periodFile = findFile("SALES_BY_PERIOD");
+  const productPerformanceFile = findFile("PRODUCT_PERFORMANCE_SUMMARY");
 
   const missingFields: string[] = [];
   if (!invoiceSummaryFile) missingFields.push("لم يتم رفع تقرير \"المبيعات من كل فاتورة\" — إجمالي المبيعات وعدد الفواتير غير متاحة.");
@@ -129,6 +132,7 @@ export function calculateKpis(
 
   // --- Invoice summary (single aggregate row: totals only, no line items) ---
   let invoiceSalesExVat: number | null = null;
+  let distinctProductsInCustomerFile: number | null = null;
   if (invoiceSummaryFile) {
     const summary = extractInvoiceSummary(invoiceSummaryFile);
     if (summary) {
@@ -284,6 +288,8 @@ export function calculateKpis(
     result.categoryRevenue = Object.fromEntries(
       Object.entries(categoryAgg).map(([k, v]) => [k, v.allPriced ? v.revenue : 0])
     ) as never;
+
+    distinctProductsInCustomerFile = productMap.size || null;
   }
 
   // --- Payment method breakdown: not confirmed against a real Rewaa file
@@ -348,10 +354,16 @@ export function calculateKpis(
     }
   }
   if (periodFile) {
-    const amountCol = resolveColumn(periodFile.columns, "lineTotal");
-    if (amountCol) {
-      const sum = sumBy(periodFile.rows, (r) => toNumber(r[amountCol]) ?? 0);
-      addReconciliation("إجمالي المبيعات: الفواتير مقابل الفترة الزمنية", result.totalSalesInclVat, sum);
+    const periodSummary = extractPeriodSummary(periodFile);
+    if (periodSummary) {
+      addReconciliation("إجمالي المبيعات (بدون ضريبة): الفواتير مقابل ملخص الفترة الزمنية", invoiceSalesExVat, periodSummary.totalSalesExVat);
+    }
+  }
+  if (productPerformanceFile) {
+    const productSummary = extractProductPerformanceSummary(productPerformanceFile);
+    if (productSummary) {
+      addReconciliation("إجمالي المبيعات (بدون ضريبة): الفواتير مقابل تقرير أداء المنتج", invoiceSalesExVat, productSummary.totalSalesExVat);
+      addReconciliation("عدد المنتجات: تقرير أداء المنتج مقابل منتجات العملاء", productSummary.totalProducts, distinctProductsInCustomerFile);
     }
   }
 

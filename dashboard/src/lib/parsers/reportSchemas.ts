@@ -85,17 +85,37 @@ export const REPORT_SCHEMAS: ReportSchemaDef[] = [
     hintGroups: [["الفاتورة", "invoice"], ["المبيعات", "sales"]],
   },
   {
-    // Not yet confirmed against a real file — placeholder hints only.
+    // Confirmed real headers: طريقة الدفع, المبلغ (per-method rows) — small
+    // file (one row per payment method), no per-transaction detail.
     reportType: "SALES_BY_PAYMENT_METHOD",
     labelAr: "المبيعات من طرق الدفع",
     signature: ["طريقه الدفع"],
     hintGroups: [["طريقة الدفع", "payment method", "payment"], ["المبلغ", "المبيعات", "amount", "sales"]],
   },
   {
-    // Not yet confirmed against a real file — placeholder hints only.
+    // Confirmed real headers: إجمالي المبيعات (شاملة الضريبة) [mislabeled —
+    // actually holds an invoice-count-like figure, not used], إجمالي
+    // المبيعات, ضريبة المبيعات, المبيعات (شامل الضريبة), إجمالي الكمية
+    // المباعة, إجمالي الكمية المرتجعة, إجمالي تكلفة البضاعة المباعة,
+    // إجمالي قيمة الربح. Single aggregate row for the whole period — a
+    // near-duplicate of the invoice summary, useful mainly as a
+    // reconciliation cross-check. Note "الكمية" here is singular, unlike
+    // the invoice/category summaries' plural "الكميات" — that's what
+    // distinguishes this schema's signature from theirs.
     reportType: "SALES_BY_PERIOD",
     labelAr: "ملخص المبيعات حسب الفترة الزمنية",
-    signature: [],
+    signature: ["ضريبة المبيعات", "الكمية المرتجعة"],
     hintGroups: [["الفترة", "التاريخ", "period", "date"], ["المبيعات", "sales"]],
+  },
+  {
+    // Confirmed real headers: إجمالي المبيعات, إجمالي تكلفة البضاعة المباعة,
+    // إجمالي قيمة الربح, إجمالي الضريبة, إجمالي المبيعات (شاملة الضريبة),
+    // إجمالي المنتجات, متوسط مبيعات المنتجات. Single aggregate row — like
+    // the category summary but keyed by distinct PRODUCT count instead of
+    // category count, no per-product breakdown despite the report's name.
+    reportType: "PRODUCT_PERFORMANCE_SUMMARY",
+    labelAr: "تقرير أداء المنتج",
+    signature: ["اجمالي المنتجات", "متوسط مبيعات المنتجات"],
+    hintGroups: [["المنتج", "product"], ["المبيعات", "sales"]],
   },
 ];

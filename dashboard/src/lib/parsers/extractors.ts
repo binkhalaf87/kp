@@ -85,6 +85,72 @@ export function extractCategorySummary(file: ImportedFile): CategorySummary | nu
   };
 }
 
+export interface PeriodSummary {
+  totalSalesExVat: number | null;
+  vatTotal: number | null;
+  totalSalesInclVat: number | null;
+  soldQty: number | null;
+  returnedQty: number | null;
+  cogs: number | null;
+  grossProfit: number | null;
+}
+
+/**
+ * "ملخص المبيعات حسب الفترة الزمنية" — a single aggregate row for the whole
+ * period, near-duplicate of the invoice summary. Its first column
+ * ("إجمالي المبيعات (شاملة الضريبة)") is confirmed mislabeled in real
+ * exports — it actually holds an invoice-count-like figure, not a sales
+ * total — so it is deliberately never read here; every other column lines
+ * up with its own name. Useful mainly as an independent reconciliation
+ * cross-check against the invoice summary.
+ */
+export function extractPeriodSummary(file: ImportedFile): PeriodSummary | null {
+  const row = file.rows[0];
+  if (!row) return null;
+  const cols = file.columns;
+  return {
+    totalSalesExVat: getNum(row, findExactColumn(cols, ["إجمالي المبيعات"])),
+    vatTotal: getNum(row, findExactColumn(cols, ["ضريبة المبيعات"])),
+    totalSalesInclVat: getNum(row, findExactColumn(cols, ["المبيعات (شامل الضريبة)", "المبيعات (شاملة الضريبة)"])),
+    soldQty: getNum(row, findExactColumn(cols, ["إجمالي الكمية المباعة"])),
+    returnedQty: getNum(row, findExactColumn(cols, ["إجمالي الكمية المرتجعة"])),
+    cogs: getNum(row, findExactColumn(cols, ["إجمالي تكلفة البضاعة المباعة"])),
+    grossProfit: getNum(row, findExactColumn(cols, ["إجمالي قيمة الربح"])),
+  };
+}
+
+export interface ProductPerformanceSummary {
+  totalSalesExVat: number | null;
+  cogs: number | null;
+  grossProfit: number | null;
+  vatTotal: number | null;
+  totalSalesInclVat: number | null;
+  totalProducts: number | null;
+  avgProductSales: number | null;
+}
+
+/**
+ * "تقرير أداء المنتج" — a single aggregate row keyed by distinct PRODUCT
+ * count (like the category summary is keyed by category count), no
+ * per-product breakdown despite the name. "totalProducts" gives an
+ * independent count of distinct products sold, cross-checkable against the
+ * distinct product names seen in the customer-products file.
+ */
+export function extractProductPerformanceSummary(file: ImportedFile): ProductPerformanceSummary | null {
+  const row = file.rows[0];
+  if (!row) return null;
+  const cols = file.columns;
+  return {
+    totalSalesExVat: getNum(row, findExactColumn(cols, ["إجمالي المبيعات"])),
+    cogs: getNum(row, findExactColumn(cols, ["إجمالي تكلفة البضاعة المباعة"])),
+    grossProfit: getNum(row, findExactColumn(cols, ["إجمالي قيمة الربح"])),
+    vatTotal: getNum(row, findExactColumn(cols, ["إجمالي الضريبة"])),
+    totalSalesInclVat: getNum(row, findExactColumn(cols, ["إجمالي المبيعات (شاملة الضريبة)"])),
+    totalProducts: getNum(row, findExactColumn(cols, ["إجمالي المنتجات"])),
+    avgProductSales: getNum(row, findExactColumn(cols, ["متوسط مبيعات المنتجات"])),
+  };
+}
+
 export interface EntityRow {
   name: string;
   sales: number;

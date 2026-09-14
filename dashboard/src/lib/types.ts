@@ -9,6 +9,7 @@ export type ReportType =
   | "CUSTOMER_PRODUCTS" // منتجات العملاء
   | "SALES_BY_PAYMENT_METHOD" // المبيعات من طرق الدفع
   | "SALES_BY_PERIOD" // ملخص المبيعات حسب الفترة الزمنية
+  | "PRODUCT_PERFORMANCE_SUMMARY" // تقرير أداء المنتج
   | "UNKNOWN";
 
 export const REPORT_TYPE_LABELS_AR: Record<ReportType, string> = {
@@ -19,6 +20,7 @@ export const REPORT_TYPE_LABELS_AR: Record<ReportType, string> = {
   CUSTOMER_PRODUCTS: "منتجات العملاء",
   SALES_BY_PAYMENT_METHOD: "المبيعات من طرق الدفع",
   SALES_BY_PERIOD: "ملخص المبيعات حسب الفترة الزمنية",
+  PRODUCT_PERFORMANCE_SUMMARY: "تقرير أداء المنتج",
   UNKNOWN: "غير معروف",
 };
 

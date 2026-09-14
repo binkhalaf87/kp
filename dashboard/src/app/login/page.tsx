@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { BASE_PATH } from "@/lib/basePath";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -13,7 +12,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${BASE_PATH}/api/login`, {
+      const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -23,10 +22,8 @@ export default function LoginPage() {
         setError(data.error || "حدث خطأ. حاول مرة أخرى.");
         return;
       }
-      // `next` is set by middleware from the full real pathname (already
-      // includes BASE_PATH), so use it as-is.
       const params = new URLSearchParams(window.location.search);
-      const next = params.get("next") || BASE_PATH;
+      const next = params.get("next") || "/";
       window.location.href = next;
     } finally {
       setLoading(false);

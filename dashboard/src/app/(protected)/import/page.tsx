@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dropzone } from "@/components/Dropzone";
-import { BASE_PATH } from "@/lib/basePath";
 import { PageHeader } from "@/components/PageHeader";
 import { useDashboardStore } from "@/lib/store";
 import { processUploadedFile } from "@/lib/parsers/processFile";
@@ -39,7 +38,7 @@ export default function ImportPage() {
     const usable = pending.filter((f) => f.status === "RECOGNIZED" || f.status === "NEEDS_REVIEW");
     addImports(usable);
     setPending([]);
-    router.push(BASE_PATH);
+    router.push("/");
   }
 
   const allRows = [...imports, ...pending];

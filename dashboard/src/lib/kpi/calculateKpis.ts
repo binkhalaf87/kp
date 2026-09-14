@@ -178,6 +178,12 @@ export function calculateKpis(
     // uploaded) gives a real per-product price — used only when the user
     // hasn't manually overridden it in the classification page.
     const catalogPrices = buildProductCatalogMap(imports);
+    const hasAnyManualPrice = Object.values(productMappings).some((m) => m.unitPrice !== null);
+    if (catalogPrices.size === 0 && !hasAnyManualPrice) {
+      missingFields.push(
+        'لم يتم رفع كتالوج أسعار المنتجات من رواء ("simpleProducts.csv" و"variableProducts.csv") ولا إدخال أسعار يدوية — لذلك إيراد الفئات (الكوفي، الرسم على الوجه، الاشتراكات، إلخ) غير متاح رغم توفر الكميات المباعة. ارفعهما في صفحة الاستيراد لتفعيل هذه الحسابات.'
+      );
+    }
 
     const categoryMap = new Map<string, CategoryAgg>();
     const productMap = new Map<string, CategoryAgg>();
@@ -242,12 +248,15 @@ export function calculateKpis(
       }
     }
 
+    // Direct assignment, not "|| null": we're inside the customerProductsFile
+    // branch, so a computed 0 here (e.g. no second visits this period) is a
+    // real answer and must render as 0, not be mislabeled "unavailable".
     const totalChildVisits = paidTicketEntries + secondVisitEntries;
-    result.paidTicketEntries = paidTicketEntries || null;
-    result.secondVisitEntries = secondVisitEntries || null;
-    result.totalChildVisits = totalChildVisits || null;
-    result.facePaintingCount = facePaintingCount || null;
-    result.membershipSoldCount = membershipSoldCount || null;
+    result.paidTicketEntries = paidTicketEntries;
+    result.secondVisitEntries = secondVisitEntries;
+    result.totalChildVisits = totalChildVisits;
+    result.facePaintingCount = facePaintingCount;
+    result.membershipSoldCount = membershipSoldCount;
 
     // Revenue-per-visit uses the REAL total sales aggregate (from the
     // invoice summary), not a sum of per-product revenue — so it stays
@@ -262,12 +271,16 @@ export function calculateKpis(
     const activityAgg = getCategoryAgg("ACTIVITY");
     const membershipAgg = getCategoryAgg("MEMBERSHIP");
 
-    result.ticketRevenue = ticketAgg.allPriced && ticketAgg.quantity > 0 ? ticketAgg.revenue : null;
-    result.cafeRevenue = cafeAgg.allPriced && cafeAgg.quantity > 0 ? cafeAgg.revenue : null;
-    result.facePaintingRevenue = facePaintingAgg.allPriced && facePaintingAgg.quantity > 0 ? facePaintingAgg.revenue : null;
-    result.toyRevenue = toyAgg.allPriced && toyAgg.quantity > 0 ? toyAgg.revenue : null;
-    result.activityRevenue = activityAgg.allPriced && activityAgg.quantity > 0 ? activityAgg.revenue : null;
-    result.membershipRevenue = membershipAgg.allPriced && membershipAgg.quantity > 0 ? membershipAgg.revenue : null;
+    // "allPriced" alone is the right test — it's true by default on an
+    // untouched (0-quantity) aggregate, so a category with no sales this
+    // period correctly reports 0 revenue instead of being mislabeled
+    // "unavailable" (that label is reserved for "has sales but no price").
+    result.ticketRevenue = ticketAgg.allPriced ? ticketAgg.revenue : null;
+    result.cafeRevenue = cafeAgg.allPriced ? cafeAgg.revenue : null;
+    result.facePaintingRevenue = facePaintingAgg.allPriced ? facePaintingAgg.revenue : null;
+    result.toyRevenue = toyAgg.allPriced ? toyAgg.revenue : null;
+    result.activityRevenue = activityAgg.allPriced ? activityAgg.revenue : null;
+    result.membershipRevenue = membershipAgg.allPriced ? membershipAgg.revenue : null;
 
     result.cafeRevenuePerChild =
       result.cafeRevenue !== null && totalChildVisits > 0 ? result.cafeRevenue / totalChildVisits : null;
@@ -282,8 +295,12 @@ export function calculateKpis(
       }
     }
 
-    result.byCategory = toBreakdown(categoryMap, null);
-    result.byProduct = toBreakdown(productMap, null).slice(0, 50);
+    // Share-of-total-sales is meaningful once a row's own revenue is known,
+    // even if other rows/categories still lack a price — so use the real
+    // company-wide total (from the invoice summary) as the denominator
+    // rather than requiring every category to be priced first.
+    result.byCategory = toBreakdown(categoryMap, result.totalSalesInclVat);
+    result.byProduct = toBreakdown(productMap, result.totalSalesInclVat).slice(0, 50);
     const ticketMixTotal =
       result.ticketRevenue !== null && result.membershipRevenue !== null
         ? result.ticketRevenue + result.membershipRevenue
@@ -294,7 +311,7 @@ export function calculateKpis(
       Object.entries(categoryAgg).map(([k, v]) => [k, v.allPriced ? v.revenue : 0])
     ) as never;
 
-    distinctProductsInCustomerFile = productMap.size || null;
+    distinctProductsInCustomerFile = productMap.size;
   }
 
   // --- Payment method breakdown: not confirmed against a real Rewaa file

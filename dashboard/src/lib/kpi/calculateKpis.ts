@@ -1,12 +1,17 @@
 import type { ImportedFile, ProductMapping } from "@/lib/types";
 import { buildProductMapping, effectiveCategory } from "@/lib/classification/productClassifier";
 import { resolveColumn, toNumber, toText } from "./columnResolver";
+import {
+  extractInvoiceSummary,
+  extractCategorySummary,
+  extractByUserRows,
+  extractByCustomerRows,
+  extractCustomerProductRows,
+} from "@/lib/parsers/extractors";
 import type {
   KpiResult,
   BreakdownRow,
   CashierRow,
-  DailyRow,
-  HourlyRow,
   ReconciliationRow,
   UnclassifiedProduct,
 } from "./types";
@@ -20,15 +25,37 @@ function sumBy<T>(rows: T[], fn: (r: T) => number): number {
   return rows.reduce((acc, r) => acc + fn(r), 0);
 }
 
-function toBreakdown(map: Map<string, { quantity: number; revenue: number }>, totalRevenue: number): BreakdownRow[] {
+interface CategoryAgg {
+  quantity: number;
+  revenue: number;
+  allPriced: boolean;
+}
+
+function emptyAgg(): CategoryAgg {
+  return { quantity: 0, revenue: 0, allPriced: true };
+}
+
+function addToAgg(agg: CategoryAgg, quantity: number, unitPrice: number | null) {
+  agg.quantity += quantity;
+  if (unitPrice !== null) {
+    agg.revenue += quantity * unitPrice;
+  } else {
+    agg.allPriced = false;
+  }
+}
+
+function toBreakdown(map: Map<string, CategoryAgg>, totalRevenue: number | null): BreakdownRow[] {
   return Array.from(map.entries())
-    .map(([label, v]) => ({
-      label,
-      quantity: v.quantity,
-      revenue: v.revenue,
-      sharePct: pct(v.revenue, totalRevenue),
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
+    .map(([label, v]): BreakdownRow => {
+      const revenue = v.allPriced ? v.revenue : null;
+      return {
+        label,
+        quantity: v.quantity,
+        revenue,
+        sharePct: revenue !== null && totalRevenue !== null ? pct(revenue, totalRevenue) : null,
+      };
+    })
+    .sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1) || b.quantity - a.quantity);
 }
 
 export function calculateKpis(
@@ -37,18 +64,27 @@ export function calculateKpis(
   cashierDepartments: Record<string, string>,
   reconciliationTolerancePct: number
 ): KpiResult {
-  const invoiceFile = imports.find((f) => f.reportType === "SALES_BY_INVOICE" && f.status !== "UNSUPPORTED");
-  const categoryFile = imports.find((f) => f.reportType === "SALES_BY_CATEGORY" && f.status !== "UNSUPPORTED");
-  const userFile = imports.find((f) => f.reportType === "SALES_BY_USER" && f.status !== "UNSUPPORTED");
-  const paymentFile = imports.find((f) => f.reportType === "SALES_BY_PAYMENT_METHOD" && f.status !== "UNSUPPORTED");
-  const periodFile = imports.find((f) => f.reportType === "SALES_BY_PERIOD" && f.status !== "UNSUPPORTED");
+  const findFile = (type: ImportedFile["reportType"]) =>
+    imports.find((f) => f.reportType === type && f.status !== "UNSUPPORTED");
+
+  const invoiceSummaryFile = findFile("SALES_BY_INVOICE");
+  const categorySummaryFile = findFile("SALES_BY_CATEGORY");
+  const userFile = findFile("SALES_BY_USER");
+  const customerFile = findFile("SALES_BY_CUSTOMER");
+  const customerProductsFile = findFile("CUSTOMER_PRODUCTS");
+  const paymentFile = findFile("SALES_BY_PAYMENT_METHOD");
+  const periodFile = findFile("SALES_BY_PERIOD");
 
   const missingFields: string[] = [];
+  if (!invoiceSummaryFile) missingFields.push("لم يتم رفع تقرير \"المبيعات من كل فاتورة\" — إجمالي المبيعات وعدد الفواتير غير متاحة.");
+  if (!userFile) missingFields.push("لم يتم رفع تقرير \"المبيعات حسب المستخدمين\" — أداء الكاشير غير متاح.");
+  if (!customerProductsFile) missingFields.push("لم يتم رفع تقرير \"منتجات العملاء\" — عدد زيارات الأطفال وتوزيع التذاكر غير متاح.");
+
   const unclassifiedMap = new Map<string, UnclassifiedProduct>();
   const unknownCashiers = new Set<string>();
 
   const result: KpiResult = {
-    hasInvoiceLevelData: !!invoiceFile,
+    hasInvoiceLevelData: false,
     dateRangeAvailable: false,
     timeAvailable: false,
     totalSalesInclVat: null,
@@ -64,6 +100,9 @@ export function calculateKpis(
     transactions: null,
     returnsQuantity: null,
     returnsValue: null,
+    cogs: null,
+    grossProfit: null,
+    vatTotal: null,
     ticketRevenueSharePct: null,
     cafeRevenueSharePct: null,
     otherRevenueSharePct: null,
@@ -88,81 +127,71 @@ export function calculateKpis(
     categoryRevenue: {},
   };
 
-  if (invoiceFile) {
-    const cols = invoiceFile.columns;
-    const productCol = resolveColumn(cols, "product");
-    const qtyCol = resolveColumn(cols, "quantity");
-    const totalCol = resolveColumn(cols, "lineTotal");
-    const vatCol = resolveColumn(cols, "vat");
-    const dateCol = resolveColumn(cols, "date");
-    const timeCol = resolveColumn(cols, "time");
-    const cashierCol = resolveColumn(cols, "cashier");
-    const paymentCol = resolveColumn(cols, "paymentMethod");
-    const invoiceCol = resolveColumn(cols, "invoiceNumber");
-    const returnedQtyCol = resolveColumn(cols, "returnedQuantity");
+  // --- Invoice summary (single aggregate row: totals only, no line items) ---
+  let invoiceSalesExVat: number | null = null;
+  if (invoiceSummaryFile) {
+    const summary = extractInvoiceSummary(invoiceSummaryFile);
+    if (summary) {
+      invoiceSalesExVat = summary.totalSalesExVat;
+      result.totalSalesInclVat = summary.totalSalesInclVat;
+      result.netSales = summary.totalSalesExVat;
+      result.transactions = summary.transactions;
+      result.averageTransactionValue = summary.avgTransactionValue;
+      result.returnsQuantity = summary.returnedQty;
+      result.cogs = summary.cogs;
+      result.grossProfit = summary.grossProfit;
+      result.vatTotal = summary.vatTotal;
+    }
+  }
 
-    if (!productCol) missingFields.push("عمود المنتج في تقرير الفواتير");
-    if (!qtyCol) missingFields.push("عمود الكمية في تقرير الفواتير");
-    if (!totalCol) missingFields.push("عمود إجمالي المبيعات في تقرير الفواتير");
+  // --- Cashier performance: read directly from the by-user report's own
+  // revenue/COGS/profit columns — no line-item derivation needed or possible. ---
+  if (userFile) {
+    const rows = extractByUserRows(userFile);
+    result.byCashier = rows
+      .map((r): CashierRow => {
+        if (!cashierDepartments[r.name]) unknownCashiers.add(r.name);
+        return {
+          cashierName: r.name,
+          department: cashierDepartments[r.name] ?? "غير محدد",
+          sales: r.salesInclVat,
+          quantity: r.qtySold,
+          returns: r.qtyReturned,
+          salesSharePct: result.totalSalesInclVat ? pct(r.salesInclVat, result.totalSalesInclVat) : null,
+        };
+      })
+      .sort((a, b) => b.sales - a.sales);
+  }
 
-    let totalSales = 0;
-    let vatTotal = 0;
-    let hasVat = false;
-    let ticketRevenue = 0;
-    let cafeRevenue = 0;
-    let facePaintingRevenue = 0;
-    let facePaintingCount = 0;
-    let toyRevenue = 0;
-    let activityRevenue = 0;
-    let membershipRevenue = 0;
-    let membershipSoldCount = 0;
+  // --- Customer products: the only row-level report. Quantity per product,
+  // no price/revenue — classified via the product mapping to derive child
+  // visit counts (never from "quantity sold" in general, only ticket-type
+  // products) and, where a unit price has been entered, revenue splits. ---
+  if (customerProductsFile) {
+    const rows = extractCustomerProductRows(customerProductsFile);
+
+    const categoryMap = new Map<string, CategoryAgg>();
+    const productMap = new Map<string, CategoryAgg>();
+    const ticketMixMap = new Map<string, CategoryAgg>();
+
     let paidTicketEntries = 0;
     let secondVisitEntries = 0;
-    let returnsQuantity = 0;
-    let returnsValue = 0;
+    let facePaintingCount = 0;
+    let membershipSoldCount = 0;
 
-    const invoiceNumbers = new Set<string>();
-    const categoryMap = new Map<string, { quantity: number; revenue: number }>();
-    const productMap = new Map<string, { quantity: number; revenue: number }>();
-    const paymentMap = new Map<string, { quantity: number; revenue: number }>();
-    const ticketMixMap = new Map<string, { quantity: number; revenue: number }>();
-    const cashierMap = new Map<string, { sales: number; quantity: number; returns: number }>();
-    const dailyMap = new Map<string, { sales: number; childVisits: number; cafeRevenue: number }>();
-    const hourlyMap = new Map<number, { sales: number; childEntries: number }>();
+    const categoryAgg: Record<string, CategoryAgg> = {};
+    const getCategoryAgg = (key: string) => {
+      if (!categoryAgg[key]) categoryAgg[key] = emptyAgg();
+      return categoryAgg[key];
+    };
 
-    for (const row of invoiceFile.rows) {
-      const productName = productCol ? toText(row[productCol]) : null;
-      const quantity = qtyCol ? toNumber(row[qtyCol]) ?? 0 : 0;
-      const lineTotal = totalCol ? toNumber(row[totalCol]) ?? 0 : 0;
-      const vat = vatCol ? toNumber(row[vatCol]) : null;
-      const cashier = cashierCol ? toText(row[cashierCol]) : null;
-      const payment = paymentCol ? toText(row[paymentCol]) : null;
-      const invoiceNo = invoiceCol ? toText(row[invoiceCol]) : null;
-      const dateVal = dateCol ? toText(row[dateCol]) : null;
-      const timeVal = timeCol ? toText(row[timeCol]) : null;
-      const returnedQty = returnedQtyCol ? toNumber(row[returnedQtyCol]) ?? 0 : 0;
-
-      totalSales += lineTotal;
-      if (vat !== null) {
-        vatTotal += vat;
-        hasVat = true;
-      }
-      if (invoiceNo) invoiceNumbers.add(invoiceNo);
-      if (returnedQty && returnedQty > 0) {
-        returnsQuantity += returnedQty;
-        returnsValue += (lineTotal / (quantity || 1)) * returnedQty;
-      } else if (quantity < 0) {
-        returnsQuantity += Math.abs(quantity);
-        returnsValue += Math.abs(lineTotal);
-      }
-
-      if (!productName) continue;
-
+    for (const row of rows) {
+      const productName = row.productName;
       let mapping = productMappings[productName];
-      if (!mapping) {
-        mapping = buildProductMapping(productName);
-      }
+      if (!mapping) mapping = buildProductMapping(productName);
       const category = effectiveCategory(mapping);
+      const unitPrice = mapping.unitPrice;
+      const quantity = row.quantity;
 
       if (mapping.needsReview && mapping.manualCategory === null) {
         const existing = unclassifiedMap.get(productName);
@@ -170,152 +199,116 @@ export function calculateKpis(
           productName,
           confidence: mapping.confidence,
           quantity: (existing?.quantity ?? 0) + quantity,
-          revenue: (existing?.revenue ?? 0) + lineTotal,
+          revenue: existing?.revenue ?? 0,
         });
       }
 
-      categoryMap.set(category, {
-        quantity: (categoryMap.get(category)?.quantity ?? 0) + quantity,
-        revenue: (categoryMap.get(category)?.revenue ?? 0) + lineTotal,
-      });
-      productMap.set(productName, {
-        quantity: (productMap.get(productName)?.quantity ?? 0) + quantity,
-        revenue: (productMap.get(productName)?.revenue ?? 0) + lineTotal,
-      });
+      const catAgg = categoryMap.get(category) ?? emptyAgg();
+      addToAgg(catAgg, quantity, unitPrice);
+      categoryMap.set(category, catAgg);
+
+      const prodAgg = productMap.get(productName) ?? emptyAgg();
+      addToAgg(prodAgg, quantity, unitPrice);
+      productMap.set(productName, prodAgg);
+
+      addToAgg(getCategoryAgg(category), quantity, unitPrice);
 
       if (category === "TICKET") {
-        ticketRevenue += lineTotal;
         paidTicketEntries += quantity;
-        ticketMixMap.set(productName, {
-          quantity: (ticketMixMap.get(productName)?.quantity ?? 0) + quantity,
-          revenue: (ticketMixMap.get(productName)?.revenue ?? 0) + lineTotal,
-        });
+        const m = ticketMixMap.get(productName) ?? emptyAgg();
+        addToAgg(m, quantity, unitPrice);
+        ticketMixMap.set(productName, m);
       } else if (category === "SECOND_VISIT") {
         secondVisitEntries += quantity;
-        ticketMixMap.set(productName, {
-          quantity: (ticketMixMap.get(productName)?.quantity ?? 0) + quantity,
-          revenue: (ticketMixMap.get(productName)?.revenue ?? 0) + lineTotal,
-        });
-      } else if (category === "CAFE") {
-        cafeRevenue += lineTotal;
+        const m = ticketMixMap.get(productName) ?? emptyAgg();
+        addToAgg(m, quantity, unitPrice);
+        ticketMixMap.set(productName, m);
       } else if (category === "FACE_PAINTING") {
-        facePaintingRevenue += lineTotal;
         facePaintingCount += quantity;
-      } else if (category === "TOY") {
-        toyRevenue += lineTotal;
-      } else if (category === "ACTIVITY") {
-        activityRevenue += lineTotal;
       } else if (category === "MEMBERSHIP") {
-        membershipRevenue += lineTotal;
         membershipSoldCount += quantity;
-        ticketMixMap.set(productName, {
-          quantity: (ticketMixMap.get(productName)?.quantity ?? 0) + quantity,
-          revenue: (ticketMixMap.get(productName)?.revenue ?? 0) + lineTotal,
-        });
-      }
-
-      if (payment) {
-        paymentMap.set(payment, {
-          quantity: (paymentMap.get(payment)?.quantity ?? 0) + quantity,
-          revenue: (paymentMap.get(payment)?.revenue ?? 0) + lineTotal,
-        });
-      }
-
-      if (cashier) {
-        if (!cashierDepartments[cashier]) unknownCashiers.add(cashier);
-        const c = cashierMap.get(cashier) ?? { sales: 0, quantity: 0, returns: 0 };
-        c.sales += lineTotal;
-        c.quantity += quantity;
-        if (returnedQty > 0) c.returns += returnedQty;
-        cashierMap.set(cashier, c);
-      }
-
-      if (dateVal) {
-        const d = dailyMap.get(dateVal) ?? { sales: 0, childVisits: 0, cafeRevenue: 0 };
-        d.sales += lineTotal;
-        if (category === "TICKET" || category === "SECOND_VISIT") d.childVisits += quantity;
-        if (category === "CAFE") d.cafeRevenue += lineTotal;
-        dailyMap.set(dateVal, d);
-      }
-
-      if (timeVal) {
-        const hourMatch = timeVal.match(/^(\d{1,2})/);
-        if (hourMatch) {
-          const hour = Number(hourMatch[1]);
-          const h = hourlyMap.get(hour) ?? { sales: 0, childEntries: 0 };
-          h.sales += lineTotal;
-          if (category === "TICKET" || category === "SECOND_VISIT") h.childEntries += quantity;
-          hourlyMap.set(hour, h);
-        }
+        const m = ticketMixMap.get(productName) ?? emptyAgg();
+        addToAgg(m, quantity, unitPrice);
+        ticketMixMap.set(productName, m);
       }
     }
 
     const totalChildVisits = paidTicketEntries + secondVisitEntries;
-
-    result.totalSalesInclVat = totalSales || null;
-    result.netSales = hasVat ? totalSales - vatTotal : null;
     result.paidTicketEntries = paidTicketEntries || null;
     result.secondVisitEntries = secondVisitEntries || null;
     result.totalChildVisits = totalChildVisits || null;
-    result.ticketRevenue = ticketRevenue || null;
-    result.cafeRevenue = cafeRevenue || null;
-    result.facePaintingRevenue = facePaintingRevenue || null;
     result.facePaintingCount = facePaintingCount || null;
-    result.toyRevenue = toyRevenue || null;
-    result.activityRevenue = activityRevenue || null;
-    result.membershipRevenue = membershipRevenue || null;
     result.membershipSoldCount = membershipSoldCount || null;
-    result.transactions = invoiceNumbers.size || null;
-    result.returnsQuantity = returnsQuantity || null;
-    result.returnsValue = returnsValue || null;
 
-    result.revenuePerChildVisit = totalChildVisits > 0 ? totalSales / totalChildVisits : null;
-    result.cafeRevenuePerChild = totalChildVisits > 0 ? cafeRevenue / totalChildVisits : null;
-    result.averageTransactionValue = invoiceNumbers.size > 0 ? totalSales / invoiceNumbers.size : null;
+    // Revenue-per-visit uses the REAL total sales aggregate (from the
+    // invoice summary), not a sum of per-product revenue — so it stays
+    // accurate even when most products have no unit price entered yet.
+    result.revenuePerChildVisit =
+      totalChildVisits > 0 && result.totalSalesInclVat !== null ? result.totalSalesInclVat / totalChildVisits : null;
+
+    const ticketAgg = getCategoryAgg("TICKET");
+    const cafeAgg = getCategoryAgg("CAFE");
+    const facePaintingAgg = getCategoryAgg("FACE_PAINTING");
+    const toyAgg = getCategoryAgg("TOY");
+    const activityAgg = getCategoryAgg("ACTIVITY");
+    const membershipAgg = getCategoryAgg("MEMBERSHIP");
+
+    result.ticketRevenue = ticketAgg.allPriced && ticketAgg.quantity > 0 ? ticketAgg.revenue : null;
+    result.cafeRevenue = cafeAgg.allPriced && cafeAgg.quantity > 0 ? cafeAgg.revenue : null;
+    result.facePaintingRevenue = facePaintingAgg.allPriced && facePaintingAgg.quantity > 0 ? facePaintingAgg.revenue : null;
+    result.toyRevenue = toyAgg.allPriced && toyAgg.quantity > 0 ? toyAgg.revenue : null;
+    result.activityRevenue = activityAgg.allPriced && activityAgg.quantity > 0 ? activityAgg.revenue : null;
+    result.membershipRevenue = membershipAgg.allPriced && membershipAgg.quantity > 0 ? membershipAgg.revenue : null;
+
+    result.cafeRevenuePerChild =
+      result.cafeRevenue !== null && totalChildVisits > 0 ? result.cafeRevenue / totalChildVisits : null;
     result.facePaintingPenetrationPct = totalChildVisits > 0 ? pct(facePaintingCount, totalChildVisits) : null;
 
-    result.ticketRevenueSharePct = pct(ticketRevenue, totalSales);
-    result.cafeRevenueSharePct = pct(cafeRevenue, totalSales);
-    const otherRevenue = totalSales - ticketRevenue - cafeRevenue;
-    result.otherRevenueSharePct = pct(otherRevenue, totalSales);
+    if (result.totalSalesInclVat !== null) {
+      result.ticketRevenueSharePct = result.ticketRevenue !== null ? pct(result.ticketRevenue, result.totalSalesInclVat) : null;
+      result.cafeRevenueSharePct = result.cafeRevenue !== null ? pct(result.cafeRevenue, result.totalSalesInclVat) : null;
+      if (result.ticketRevenue !== null && result.cafeRevenue !== null) {
+        const otherRevenue = result.totalSalesInclVat - result.ticketRevenue - result.cafeRevenue;
+        result.otherRevenueSharePct = pct(otherRevenue, result.totalSalesInclVat);
+      }
+    }
 
-    result.byCategory = toBreakdown(categoryMap, totalSales);
-    result.byProduct = toBreakdown(productMap, totalSales).slice(0, 50);
-    result.byPaymentMethod = toBreakdown(paymentMap, totalSales);
-    result.ticketMix = toBreakdown(ticketMixMap, ticketRevenue + membershipRevenue);
+    result.byCategory = toBreakdown(categoryMap, null);
+    result.byProduct = toBreakdown(productMap, null).slice(0, 50);
+    const ticketMixTotal =
+      result.ticketRevenue !== null && result.membershipRevenue !== null
+        ? result.ticketRevenue + result.membershipRevenue
+        : null;
+    result.ticketMix = toBreakdown(ticketMixMap, ticketMixTotal);
 
-    result.byCashier = Array.from(cashierMap.entries())
-      .map(([cashierName, v]): CashierRow => ({
-        cashierName,
-        department: cashierDepartments[cashierName] ?? "غير محدد",
-        sales: v.sales,
-        quantity: v.quantity,
-        returns: v.returns,
-        salesSharePct: pct(v.sales, totalSales),
-      }))
-      .sort((a, b) => b.sales - a.sales);
-
-    result.dailySeries = Array.from(dailyMap.entries())
-      .map(([date, v]): DailyRow => ({
-        date,
-        sales: v.sales,
-        childVisits: v.childVisits,
-        cafeRevenue: v.cafeRevenue,
-        revenuePerChild: v.childVisits > 0 ? v.sales / v.childVisits : null,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    result.dateRangeAvailable = result.dailySeries.length > 0;
-
-    result.hourlySeries = Array.from(hourlyMap.entries())
-      .map(([hour, v]): HourlyRow => ({ hour, sales: v.sales, childEntries: v.childEntries }))
-      .sort((a, b) => a.hour - b.hour);
-    result.timeAvailable = result.hourlySeries.length > 0;
-
-    result.categoryRevenue = Object.fromEntries(categoryMap.entries()) as never;
+    result.categoryRevenue = Object.fromEntries(
+      Object.entries(categoryAgg).map(([k, v]) => [k, v.allPriced ? v.revenue : 0])
+    ) as never;
   }
 
-  // Reconciliation: compare invoice-level totals against independently
-  // reported aggregates when both are available.
+  // --- Payment method breakdown: not confirmed against a real Rewaa file
+  // yet, kept as a best-effort fallback for whichever shape gets uploaded. ---
+  if (paymentFile) {
+    const methodCol = resolveColumn(paymentFile.columns, "paymentMethod");
+    const amountCol = resolveColumn(paymentFile.columns, "lineTotal");
+    if (methodCol && amountCol) {
+      const map = new Map<string, CategoryAgg>();
+      for (const row of paymentFile.rows) {
+        const method = toText(row[methodCol]);
+        const amount = toNumber(row[amountCol]) ?? 0;
+        if (!method) continue;
+        const agg = map.get(method) ?? emptyAgg();
+        agg.quantity += 1;
+        agg.revenue += amount;
+        map.set(method, agg);
+      }
+      const total = sumBy(Array.from(map.values()), (v) => v.revenue);
+      result.byPaymentMethod = toBreakdown(map, total || null);
+    }
+  }
+
+  // --- Reconciliation: cross-check the same "total sales" figure across
+  // every independently-reported aggregate/entity file we have. ---
   const reconciliation: ReconciliationRow[] = [];
   const addReconciliation = (label: string, a: number | null, b: number | null) => {
     if (a === null || b === null) return;
@@ -331,37 +324,39 @@ export function calculateKpis(
     });
   };
 
-  if (categoryFile && result.totalSalesInclVat !== null) {
-    const totalCol = resolveColumn(categoryFile.columns, "lineTotal");
-    if (totalCol) {
-      const sum = sumBy(categoryFile.rows, (r) => toNumber(r[totalCol]) ?? 0);
-      addReconciliation("إجمالي المبيعات: الفواتير مقابل ملخص الفئات", result.totalSalesInclVat, sum);
+  if (categorySummaryFile) {
+    const catSummary = extractCategorySummary(categorySummaryFile);
+    if (catSummary) {
+      addReconciliation("إجمالي المبيعات (بدون ضريبة): الفواتير مقابل ملخص الفئات", invoiceSalesExVat, catSummary.totalSalesExVat);
     }
   }
-  if (userFile && result.totalSalesInclVat !== null) {
-    const totalCol = resolveColumn(userFile.columns, "lineTotal");
-    if (totalCol) {
-      const sum = sumBy(userFile.rows, (r) => toNumber(r[totalCol]) ?? 0);
-      addReconciliation("إجمالي المبيعات: الفواتير مقابل المستخدمين", result.totalSalesInclVat, sum);
-    }
+  if (userFile) {
+    const rows = extractByUserRows(userFile);
+    const sum = sumBy(rows, (r) => r.sales);
+    addReconciliation("إجمالي المبيعات (بدون ضريبة): الفواتير مقابل المستخدمين", invoiceSalesExVat, sum);
   }
-  if (paymentFile && result.totalSalesInclVat !== null) {
-    const totalCol = resolveColumn(paymentFile.columns, "lineTotal");
-    if (totalCol) {
-      const sum = sumBy(paymentFile.rows, (r) => toNumber(r[totalCol]) ?? 0);
+  if (customerFile) {
+    const rows = extractByCustomerRows(customerFile);
+    const sum = sumBy(rows, (r) => r.sales);
+    addReconciliation("إجمالي المبيعات (بدون ضريبة): الفواتير مقابل العملاء", invoiceSalesExVat, sum);
+  }
+  if (paymentFile) {
+    const amountCol = resolveColumn(paymentFile.columns, "lineTotal");
+    if (amountCol) {
+      const sum = sumBy(paymentFile.rows, (r) => toNumber(r[amountCol]) ?? 0);
       addReconciliation("إجمالي المبيعات: الفواتير مقابل طرق الدفع", result.totalSalesInclVat, sum);
     }
   }
-  if (periodFile && result.totalSalesInclVat !== null) {
-    const totalCol = resolveColumn(periodFile.columns, "lineTotal");
-    if (totalCol) {
-      const sum = sumBy(periodFile.rows, (r) => toNumber(r[totalCol]) ?? 0);
+  if (periodFile) {
+    const amountCol = resolveColumn(periodFile.columns, "lineTotal");
+    if (amountCol) {
+      const sum = sumBy(periodFile.rows, (r) => toNumber(r[amountCol]) ?? 0);
       addReconciliation("إجمالي المبيعات: الفواتير مقابل الفترة الزمنية", result.totalSalesInclVat, sum);
     }
   }
 
   result.reconciliation = reconciliation;
-  result.unclassifiedProducts = Array.from(unclassifiedMap.values()).sort((a, b) => b.revenue - a.revenue);
+  result.unclassifiedProducts = Array.from(unclassifiedMap.values()).sort((a, b) => b.quantity - a.quantity);
   result.unknownCashiers = Array.from(unknownCashiers);
   result.missingFields = missingFields;
 

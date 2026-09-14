@@ -11,6 +11,11 @@ import type { ProductCategory } from "@/lib/types";
 // Known ticket products. "مجموعة" (group) here is a PRICE TIER, not a
 // grouping of multiple children — every unit sold equals exactly one child
 // entry. See src/lib/classification/productClassifier.ts.
+// Includes both the originally-described names and the exact names
+// confirmed from a real Rewaa "منتجات العملاء" export (which prefixes
+// tickets with "تذكرة لعب" and has no spaces around the tier/duration
+// dash) — the substring-based fallback in classifyProduct catches other
+// variants too, this list is just for exact-match top confidence.
 export const KNOWN_TICKET_PRODUCTS = [
   "فردي - ساعة",
   "مجموعة - ساعة",
@@ -21,9 +26,18 @@ export const KNOWN_TICKET_PRODUCTS = [
   "مجموعة - مفتوح",
   "للصغار - مفتوح",
   "مخفضة - ساعة",
+  "تذكرة لعب فردي-ساعة",
+  "تذكرة لعب مجموعة-ساعة",
+  "تذكرة لعب للصغار - ساعة",
+  "تذكرة لعب فردي-ساعتين",
+  "تذكرة لعب مجموعة-ساعتين",
+  "تذكرة لعب فردي-مفتوح",
+  "تذكرة لعب مجموعة-مفتوح",
+  "تذكرة لعب للصغار - مفتوح",
+  "تذكرة لعب مخفضة-ساعة",
 ];
 
-export const KNOWN_SECOND_VISIT_PRODUCTS = ["الزيارة الثانية"];
+export const KNOWN_SECOND_VISIT_PRODUCTS = ["الزيارة الثانية", "تذكرة الزيارة الثانيه"];
 
 export const KNOWN_CAFE_KEYWORDS = [
   "v60",

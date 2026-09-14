@@ -32,6 +32,12 @@ export function classifyProduct(productName: string): { category: ProductCategor
   if (KNOWN_SECOND_VISIT_PRODUCTS.some((p) => p === name)) {
     return { category: "SECOND_VISIT", confidence: 1 };
   }
+  // Covers spelling variants seen in real exports (e.g. "الزيارة الثانيه" vs
+  // "الزيارة الثانية") and an optional "تذكرة" prefix, via substring match
+  // rather than requiring an exact string.
+  if (name.includes("زياره الثاني") || name.includes("زيارة الثاني") || name.includes("زيارة ثاني")) {
+    return { category: "SECOND_VISIT", confidence: 0.9 };
+  }
   if (KNOWN_TICKET_PRODUCTS.some((p) => p === name)) {
     return { category: "TICKET", confidence: 1 };
   }
@@ -72,6 +78,7 @@ export function buildProductMapping(productName: string): ProductMapping {
     department: category === "CAFE" ? "Cafe" : category === "TICKET" ? "Tickets/Reception" : "Other",
     confidence,
     needsReview: confidence < CLASSIFICATION_CONFIDENCE_THRESHOLD,
+    unitPrice: null,
   };
 }
 

@@ -1,90 +1,5 @@
 import type { ReportType } from "@/lib/types";
 
-/**
- * Column-name heuristics used to detect which known Rewaa report a file
- * represents. Each report type has a list of "hint groups" — each group is a
- * set of alternative keywords (Arabic/English) that would appear in a column
- * name for that concept. A report type "matches" a hint group if ANY column
- * in the file contains ANY keyword from that group (case-insensitive,
- * whitespace-normalized substring match).
- *
- * IMPORTANT: these hints are best-effort placeholders based on the report
- * names and product/field vocabulary described for this project. They have
- * NOT been verified against real Rewaa export files yet. Until real sample
- * files are supplied, low-confidence matches are surfaced to the user as
- * "يحتاج مراجعة" rather than silently assumed — see detectReportType.ts.
- * Once real files are available, replace/extend the keyword lists below to
- * match the exact column headers.
- */
-export interface ReportSchemaDef {
-  reportType: ReportType;
-  labelAr: string;
-  hintGroups: string[][];
-}
-
-export const REPORT_SCHEMAS: ReportSchemaDef[] = [
-  {
-    reportType: "SALES_BY_CATEGORY",
-    labelAr: "ملخص المبيعات بحسب الفئة",
-    hintGroups: [
-      ["الفئة", "category"],
-      ["الكمية", "quantity", "qty"],
-      ["المبيعات", "الإجمالي", "sales", "total", "net"],
-    ],
-  },
-  {
-    reportType: "SALES_BY_INVOICE",
-    labelAr: "تقرير المبيعات من كل فاتورة",
-    hintGroups: [
-      ["رقم الفاتورة", "invoice", "فاتورة"],
-      ["المنتج", "product", "item", "صنف"],
-      ["الكمية", "quantity", "qty"],
-      ["التاريخ", "date"],
-    ],
-  },
-  {
-    reportType: "SALES_BY_USER",
-    labelAr: "المبيعات حسب المستخدمين",
-    hintGroups: [
-      ["المستخدم", "الكاشير", "user", "cashier", "employee", "الموظف"],
-      ["المبيعات", "الإجمالي", "sales", "total"],
-    ],
-  },
-  {
-    reportType: "SALES_BY_CUSTOMER",
-    labelAr: "المبيعات حسب العملاء",
-    hintGroups: [
-      ["العميل", "customer", "client"],
-      ["المبيعات", "الإجمالي", "sales", "total"],
-    ],
-  },
-  {
-    reportType: "CUSTOMER_PRODUCTS",
-    labelAr: "منتجات العملاء",
-    hintGroups: [
-      ["العميل", "customer"],
-      ["المنتج", "product", "item"],
-      ["الكمية", "quantity", "qty"],
-    ],
-  },
-  {
-    reportType: "SALES_BY_PAYMENT_METHOD",
-    labelAr: "المبيعات من طرق الدفع",
-    hintGroups: [
-      ["طريقة الدفع", "payment method", "payment", "الدفع"],
-      ["المبلغ", "المبيعات", "amount", "total", "sales"],
-    ],
-  },
-  {
-    reportType: "SALES_BY_PERIOD",
-    labelAr: "ملخص المبيعات حسب الفترة الزمنية",
-    hintGroups: [
-      ["الفترة", "التاريخ", "period", "date", "day", "month", "يوم", "شهر"],
-      ["المبيعات", "الإجمالي", "sales", "total"],
-    ],
-  },
-];
-
 export function normalizeColumnName(name: string): string {
   return name
     .trim()
@@ -93,3 +8,94 @@ export function normalizeColumnName(name: string): string {
     .replace(/ة/g, "ه")
     .replace(/\s+/g, " ");
 }
+
+/**
+ * Column signatures confirmed against real Rewaa CSV exports (not guessed).
+ * Every Rewaa "detail" report we've seen so far is actually a single-row
+ * AGGREGATE — there is no per-invoice line-item export with date/time/
+ * cashier/payment-method per row. Only "منتجات العملاء" (customer products)
+ * has row-level granularity, and even that has no price/revenue column.
+ *
+ * Each schema below is identified by a `signature` — one or more columns
+ * that, combined, uniquely identify that report among the others (checked
+ * in the order they appear in REPORT_SCHEMAS, most specific first).
+ * SALES_BY_PAYMENT_METHOD and SALES_BY_PERIOD have not been confirmed
+ * against a real file yet, so they keep looser, lower-confidence hints.
+ */
+export interface ReportSchemaDef {
+  reportType: ReportType;
+  labelAr: string;
+  /** All of these substrings must appear in some column for a confident (0.95) match. */
+  signature: string[];
+  /** Fallback fuzzy hint groups, used only if no schema's signature matches. */
+  hintGroups: string[][];
+}
+
+export const REPORT_SCHEMAS: ReportSchemaDef[] = [
+  {
+    // Confirmed real headers: اسم العميل, رقم هاتف العميل, اسم المنتج,
+    // الرقم التعريفي, الكمية, معلومات تتبع المنتج
+    reportType: "CUSTOMER_PRODUCTS",
+    labelAr: "منتجات العملاء",
+    signature: ["اسم المنتج", "اسم العميل"],
+    hintGroups: [["العميل", "customer"], ["المنتج", "product"], ["الكمية", "quantity"]],
+  },
+  {
+    // Confirmed real headers: اسم العميل, رقم هاتف العميل, الموقع, المبيعات,
+    // تكلفة البضاعة المباعة, قيمة الربح, المبيعات (شامل الضريبة),
+    // الكمية المباعة, الكمية المرتجعة — same shape as SALES_BY_USER but
+    // keyed by customer+phone instead of user/role.
+    reportType: "SALES_BY_CUSTOMER",
+    labelAr: "المبيعات حسب العملاء",
+    signature: ["اسم العميل", "رقم هاتف العميل"],
+    hintGroups: [["العميل", "customer"], ["المبيعات", "sales"]],
+  },
+  {
+    // Confirmed real headers: المستخدم / الوظيفة, الموقع, المبيعات,
+    // تكلفة البضاعة المباعة, قيمة الربح, المبيعات (شاملة الضريبة),
+    // الكمية المباعة, الكمية المرتجعة
+    reportType: "SALES_BY_USER",
+    labelAr: "المبيعات حسب المستخدمين",
+    signature: ["المستخدم"],
+    hintGroups: [["المستخدم", "الكاشير", "user", "cashier"], ["المبيعات", "sales"]],
+  },
+  {
+    // Confirmed real headers: إجمالي المبيعات, إجمالي الفئات,
+    // متوسط مبيعات الفئات, إجمالي المبيعات (شاملة الضريبة),
+    // إجمالي الكميات المباعة, إجمالي الكميات المرتجعة,
+    // إجمالي تكلفة البضاعة المباعة, إجمالي قيمة الربح
+    // Single aggregate row — only tells you the category COUNT, not a
+    // per-category breakdown.
+    reportType: "SALES_BY_CATEGORY",
+    labelAr: "ملخص المبيعات بحسب الفئة",
+    signature: ["اجمالي الفئات"],
+    hintGroups: [["الفئة", "category"], ["المبيعات", "sales"]],
+  },
+  {
+    // Confirmed real headers: إجمالي المبيعات, إجمالي الفواتير,
+    // متوسط مبيعات الفواتير, المبيعات (شاملة الضريبة),
+    // إجمالي تكلفة البضاعة المباعة, إجمالي قيمة الربح,
+    // إجمالي الكميات المباعة, إجمالي الكميات المرتجعة,
+    // ضريبة المبيعات %15, ضريبة المبيعات %100, الضرائب الأخرى, إجمالي الضريبة
+    // Also a single aggregate row (total invoice count + totals), not
+    // itemized per invoice despite the report's name.
+    reportType: "SALES_BY_INVOICE",
+    labelAr: "تقرير المبيعات من كل فاتورة (ملخص إجمالي)",
+    signature: ["اجمالي الفواتير"],
+    hintGroups: [["الفاتورة", "invoice"], ["المبيعات", "sales"]],
+  },
+  {
+    // Not yet confirmed against a real file — placeholder hints only.
+    reportType: "SALES_BY_PAYMENT_METHOD",
+    labelAr: "المبيعات من طرق الدفع",
+    signature: ["طريقه الدفع"],
+    hintGroups: [["طريقة الدفع", "payment method", "payment"], ["المبلغ", "المبيعات", "amount", "sales"]],
+  },
+  {
+    // Not yet confirmed against a real file — placeholder hints only.
+    reportType: "SALES_BY_PERIOD",
+    labelAr: "ملخص المبيعات حسب الفترة الزمنية",
+    signature: [],
+    hintGroups: [["الفترة", "التاريخ", "period", "date"], ["المبيعات", "sales"]],
+  },
+];

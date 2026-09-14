@@ -6,7 +6,10 @@ export type Metric = number | null;
 export interface BreakdownRow {
   label: string;
   quantity: number;
-  revenue: number;
+  // null when the products in this row/category have no manually-entered
+  // unit price yet (Rewaa's row-level exports carry quantity only, never
+  // revenue) — never estimated, per the no-invented-data rule.
+  revenue: number | null;
   sharePct: number | null;
 }
 
@@ -68,6 +71,12 @@ export interface KpiResult {
   transactions: Metric;
   returnsQuantity: Metric;
   returnsValue: Metric;
+  // Rewaa's own figures (from the invoice-summary aggregate report), shown
+  // as informational metrics — NOT used as "net profit" anywhere; Operating
+  // Profit (see profit.ts) is computed separately from entered expenses.
+  cogs: Metric;
+  grossProfit: Metric;
+  vatTotal: Metric;
 
   // Secondary
   ticketRevenueSharePct: Metric;

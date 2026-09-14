@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { useDashboardStore } from "@/lib/store";
 import { buildProductMapping, effectiveCategory } from "@/lib/classification/productClassifier";
-import { resolveColumn } from "@/lib/kpi/columnResolver";
+import { extractCustomerProductRows } from "@/lib/parsers/extractors";
 import { PRODUCT_CATEGORY_LABELS_AR, type ProductCategory } from "@/lib/types";
 
 const CATEGORIES = Object.keys(PRODUCT_CATEGORY_LABELS_AR) as ProductCategory[];
@@ -15,24 +15,21 @@ export default function ClassificationPage() {
   const productMappings = useDashboardStore((s) => s.productMappings);
   const upsertProductMapping = useDashboardStore((s) => s.upsertProductMapping);
 
-  const invoiceFile = imports.find((f) => f.reportType === "SALES_BY_INVOICE");
+  const productsFile = imports.find((f) => f.reportType === "CUSTOMER_PRODUCTS");
 
   const productNames = useMemo(() => {
-    if (!invoiceFile) return [];
-    const productCol = resolveColumn(invoiceFile.columns, "product");
-    if (!productCol) return [];
+    if (!productsFile) return [];
     const names = new Set<string>();
-    for (const row of invoiceFile.rows) {
-      const v = row[productCol];
-      if (v) names.add(String(v).trim());
+    for (const row of extractCustomerProductRows(productsFile)) {
+      names.add(row.productName);
     }
     return Array.from(names).sort();
-  }, [invoiceFile]);
+  }, [productsFile]);
 
-  if (!invoiceFile) {
+  if (!productsFile) {
     return (
       <div>
-        <PageHeader title="تصنيف المنتجات" description="يحتاج هذا القسم إلى تقرير 'المبيعات من كل فاتورة' لعرض قائمة المنتجات." />
+        <PageHeader title="تصنيف المنتجات" description="يحتاج هذا القسم إلى تقرير 'منتجات العملاء' لعرض قائمة المنتجات." />
         <EmptyState />
       </div>
     );
@@ -42,7 +39,10 @@ export default function ClassificationPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="تصنيف المنتجات"
-        description={'"مجموعة" في اسم التذكرة تصنيف سعري فقط — كل وحدة مباعة = دخول طفل واحد.'}
+        description={
+          '"مجموعة" في اسم التذكرة تصنيف سعري فقط — كل وحدة مباعة = دخول طفل واحد. ' +
+          "تقرير \"منتجات العملاء\" لا يحتوي على سعر لكل منتج — أدخل السعر يدويًا هنا لفتح حسابات الإيراد (إيراد التذاكر، الكوفي، إلخ)."
+        }
       />
 
       <div className="kp-card overflow-x-auto">
@@ -55,6 +55,7 @@ export default function ClassificationPage() {
               <th>يُحتسب كدخول طفل؟</th>
               <th>يُحتسب كزيارة ثانية؟</th>
               <th>القسم</th>
+              <th>سعر الوحدة (ر.س)</th>
             </tr>
           </thead>
           <tbody>
@@ -107,6 +108,22 @@ export default function ClassificationPage() {
                       value={mapping.department}
                       onChange={(e) => upsertProductMapping({ ...mapping, department: e.target.value })}
                       className="border border-[#e3e7f5] rounded-lg px-2 py-1 text-sm w-32"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="غير محدد"
+                      value={mapping.unitPrice ?? ""}
+                      onChange={(e) =>
+                        upsertProductMapping({
+                          ...mapping,
+                          unitPrice: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      className="border border-[#e3e7f5] rounded-lg px-2 py-1 text-sm w-24"
                     />
                   </td>
                 </tr>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import { BASE_PATH } from "@/lib/basePath";
 
 const NAV_ITEMS = [
   { href: "/", label: "لوحة الإدارة" },
@@ -19,6 +20,11 @@ const NAV_ITEMS = [
   { href: "/import", label: "استيراد تقارير رواء" },
   { href: "/settings", label: "الإعدادات" },
 ];
+
+async function handleLogout() {
+  await fetch(`${BASE_PATH}/api/logout`, { method: "POST" });
+  window.location.href = `${BASE_PATH}/login`;
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -48,8 +54,11 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-5 py-4 text-[11px] text-white/40 border-t border-white/10">
-        Kids Planet Entertainment
+      <div className="px-5 py-4 border-t border-white/10 flex items-center justify-between">
+        <span className="text-[11px] text-white/40">Kids Planet Entertainment</span>
+        <button onClick={handleLogout} className="text-[11px] font-bold text-white/60 hover:text-white">
+          تسجيل خروج
+        </button>
       </div>
     </aside>
   );
@@ -58,7 +67,7 @@ export function Sidebar() {
 export function MobileNav() {
   const pathname = usePathname();
   return (
-    <div className="lg:hidden overflow-x-auto whitespace-nowrap bg-navy text-white px-3 py-2 sticky top-0 z-40">
+    <div className="lg:hidden overflow-x-auto whitespace-nowrap bg-navy text-white px-3 py-2 sticky top-0 z-40 flex items-center">
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
         return (
@@ -66,7 +75,7 @@ export function MobileNav() {
             key={item.href}
             href={item.href}
             className={clsx(
-              "inline-block px-3 py-1.5 mx-0.5 rounded-full text-xs font-bold",
+              "inline-block px-3 py-1.5 mx-0.5 rounded-full text-xs font-bold shrink-0",
               active ? "bg-white text-navy" : "text-white/70"
             )}
           >
@@ -74,6 +83,9 @@ export function MobileNav() {
           </Link>
         );
       })}
+      <button onClick={handleLogout} className="inline-block px-3 py-1.5 mx-0.5 rounded-full text-xs font-bold shrink-0 text-white/60">
+        خروج
+      </button>
     </div>
   );
 }

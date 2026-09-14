@@ -40,6 +40,18 @@ export default function SalesPage() {
       </div>
 
       <div className="kp-card">
+        <div className="font-black text-navy mb-2">أرقام رواء (تكلفة البضاعة وهامش الربح الإجمالي)</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <KpiCard label="تكلفة البضاعة المباعة (COGS)" value={formatSar(kpis.cogs)} />
+          <KpiCard label="إجمالي قيمة الربح (من رواء)" value={formatSar(kpis.grossProfit)} />
+          <KpiCard label="إجمالي الضريبة" value={formatSar(kpis.vatTotal)} />
+        </div>
+        <div className="text-[11px] text-muted mt-2">
+          هذا هامش الربح الإجمالي من رواء فقط — وليس الربح التشغيلي الصافي. الربح التشغيلي (بعد خصم المصروفات) متاح في صفحة الأهداف/لوحة الإدارة.
+        </div>
+      </div>
+
+      <div className="kp-card">
         <div className="font-black text-navy mb-3">المبيعات اليومية</div>
         <DailySalesChart data={kpis.dailySeries} />
       </div>

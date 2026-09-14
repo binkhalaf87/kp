@@ -84,6 +84,11 @@ export interface ProductMapping {
   department: string;
   confidence: number; // 0..1, how sure the auto-classifier is
   needsReview: boolean;
+  // Rewaa's per-customer product export gives quantity but no price/revenue
+  // per line. Entering a unit price here is what unlocks revenue-based KPIs
+  // (ticket/cafe revenue, revenue per child) for that product; until set,
+  // those metrics stay "unavailable" rather than guessed.
+  unitPrice: number | null;
 }
 
 export interface CashierMapping {

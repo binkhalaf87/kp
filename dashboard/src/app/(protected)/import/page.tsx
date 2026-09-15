@@ -47,8 +47,15 @@ export default function ImportPage() {
     <div>
       <PageHeader
         title="استيراد تقارير رواء"
-        description="ارفع ملفات المبيعات المُصدَّرة من نظام رواء (CSV / XLS / XLSX) لتحديث لوحة المؤشرات."
+        description="ارفع ملفات المبيعات المُصدَّرة من نظام رواء (CSV / XLS / XLSX). يحتفظ النظام بالسجل ويعتمد أحدث فترة من كل نوع تلقائيًا دون جمع التقارير التراكمية."
       />
+
+      <div className="kp-card mb-4 border-sky-200 bg-sky-50 text-sky-900">
+        <div className="font-black text-sm">طريقة الرفع اليومي</div>
+        <p className="text-xs mt-1">
+          صدّر التقرير من أول الشهر حتى تاريخ اليوم. عند رفع نسخة أحدث سيستخدمها التحليل بدل النسخة السابقة، ولن تُجمع النسختان أو تتكرر المبيعات.
+        </p>
+      </div>
 
       <Dropzone onFiles={handleFiles} />
 

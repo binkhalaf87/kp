@@ -11,6 +11,8 @@ import { calculateOperatingProfit } from "@/lib/kpi/profit";
 import { calculateCapitalRecovery } from "@/lib/kpi/capitalRecovery";
 import { getTargetStatus } from "@/lib/kpi/targetStatus";
 import { formatSar, formatNumber, formatPct, UNAVAILABLE_LABEL } from "@/lib/utils/format";
+import { buildExecutiveInsights } from "@/lib/analytics/executiveInsights";
+import { ExecutiveInsights } from "@/components/ExecutiveInsights";
 
 export default function DashboardPage() {
   const imports = useDashboardStore((s) => s.imports);
@@ -52,10 +54,18 @@ export default function DashboardPage() {
   const cafeAttachRate =
     kpis.totalChildVisits && cafeQuantity !== null ? (cafeQuantity / kpis.totalChildVisits) * 100 : null;
   const cafeProducts = kpis.byCategoryProducts.CAFE ?? [];
+  const executiveInsights = buildExecutiveInsights(
+    imports,
+    kpis,
+    targets.monthlySalesTarget,
+    targets.cafeRevenuePerChildTarget
+  );
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="لوحة الإدارة" description="نظرة شاملة على أداء المركز — كل مؤشر هنا محسوب من التقارير المرفوعة فعليًا." />
+
+      <ExecutiveInsights insights={executiveInsights} />
 
       {/* نظرة عامة */}
       <section className="flex flex-col gap-4">

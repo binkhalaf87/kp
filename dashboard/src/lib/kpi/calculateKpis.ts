@@ -18,6 +18,7 @@ import type {
   ReconciliationRow,
   UnclassifiedProduct,
 } from "./types";
+import { selectActiveImports } from "@/lib/imports/selectActiveImports";
 
 function pct(part: number, whole: number): number | null {
   if (!whole) return null;
@@ -67,8 +68,9 @@ export function calculateKpis(
   cashierDepartments: Record<string, string>,
   reconciliationTolerancePct: number
 ): KpiResult {
+  const activeImports = selectActiveImports(imports);
   const findFile = (type: ImportedFile["reportType"]) =>
-    imports.find((f) => f.reportType === type && f.status !== "UNSUPPORTED");
+    activeImports.find((f) => f.reportType === type);
 
   const invoiceSummaryFile = findFile("SALES_BY_INVOICE");
   const categorySummaryFile = findFile("SALES_BY_CATEGORY");
@@ -171,7 +173,7 @@ export function calculateKpis(
     // Rewaa's own product-catalog export (simple/variable products, if
     // uploaded) gives a real per-product price — used only when the user
     // hasn't manually overridden it in the classification page.
-    const catalogPrices = buildProductCatalogMap(imports);
+    const catalogPrices = buildProductCatalogMap(activeImports);
     const hasAnyManualPrice = Object.values(productMappings).some((m) => m.unitPrice !== null);
     if (catalogPrices.size === 0 && !hasAnyManualPrice) {
       missingFields.push(

@@ -6,10 +6,12 @@ import { useDashboardStore } from "@/lib/store";
 import { useKpis } from "@/lib/kpi/useKpis";
 import { REPORT_TYPE_LABELS_AR } from "@/lib/types";
 import { formatNumber, formatSar } from "@/lib/utils/format";
+import { getActiveImportIds } from "@/lib/imports/selectActiveImports";
 
 export default function DataQualityPage() {
   const imports = useDashboardStore((s) => s.imports);
   const kpis = useKpis();
+  const activeImportIds = getActiveImportIds(imports);
 
   if (imports.length === 0) {
     return (
@@ -34,6 +36,7 @@ export default function DataQualityPage() {
               <th>الفترة</th>
               <th>الصفوف</th>
               <th>الأعمدة</th>
+              <th>الاستخدام</th>
             </tr>
           </thead>
           <tbody>
@@ -44,6 +47,13 @@ export default function DataQualityPage() {
                 <td>{f.periodStart ? `${f.periodStart} — ${f.periodEnd}` : "—"}</td>
                 <td>{formatNumber(f.rowCount)}</td>
                 <td className="max-w-xs truncate" title={f.columns.join(", ")}>{f.columns.length}</td>
+                <td>
+                  {activeImportIds.has(f.id) ? (
+                    <span className="kp-badge-green">معتمد في التحليل</span>
+                  ) : (
+                    <span className="kp-badge-yellow">نسخة تاريخية</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

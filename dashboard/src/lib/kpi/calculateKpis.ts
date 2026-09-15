@@ -149,6 +149,7 @@ export function calculateKpis(
   // revenue/COGS/profit columns — no line-item derivation needed or possible. ---
   if (userFile) {
     const rows = extractByUserRows(userFile);
+    const cashierReportTotal = sumBy(rows, (r) => r.salesInclVat);
     result.byCashier = rows
       .map((r): CashierRow => {
         if (!cashierDepartments[r.name]) unknownCashiers.add(r.name);
@@ -158,7 +159,7 @@ export function calculateKpis(
           sales: r.salesInclVat,
           quantity: r.qtySold,
           returns: r.qtyReturned,
-          salesSharePct: result.totalSalesInclVat ? pct(r.salesInclVat, result.totalSalesInclVat) : null,
+          salesSharePct: cashierReportTotal ? pct(r.salesInclVat, cashierReportTotal) : null,
         };
       })
       .sort((a, b) => b.sales - a.sales);
@@ -320,6 +321,29 @@ export function calculateKpis(
     ) as never;
 
     distinctProductsInCustomerFile = productMap.size;
+  }
+
+  // Department-level cashier totals are a reliable fallback when Rewaa's
+  // customer-products export omits cafe line items. This runs after product
+  // aggregation so a real product-derived total always takes precedence.
+  const hasCafeProductRows = result.byCategory.some((row) => row.label === "CAFE" && row.quantity > 0);
+  const cafeCashiers = result.byCashier.filter((row) => row.department.trim().toLowerCase() === "cafe");
+  const cashierCafeRevenue = sumBy(cafeCashiers, (row) => row.sales);
+  const cashierCafeQuantity = sumBy(cafeCashiers, (row) => row.quantity);
+  if (!hasCafeProductRows && cashierCafeRevenue > 0) {
+    result.cafeRevenue = cashierCafeRevenue;
+    result.cafeRevenueSharePct = result.totalSalesInclVat ? pct(cashierCafeRevenue, result.totalSalesInclVat) : null;
+    result.cafeRevenuePerChild = result.totalChildVisits ? cashierCafeRevenue / result.totalChildVisits : null;
+    const existingCafeIndex = result.byCategory.findIndex((row) => row.label === "CAFE");
+    const cafeRow: BreakdownRow = {
+      label: "CAFE",
+      quantity: cashierCafeQuantity,
+      revenue: cashierCafeRevenue,
+      sharePct: result.cafeRevenueSharePct,
+    };
+    if (existingCafeIndex >= 0) result.byCategory[existingCafeIndex] = cafeRow;
+    else result.byCategory.push(cafeRow);
+    result.byCategory.sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1) || b.quantity - a.quantity);
   }
 
   // --- Payment method breakdown: not confirmed against a real Rewaa file

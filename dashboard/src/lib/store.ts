@@ -10,13 +10,16 @@ import type {
 import { DEFAULT_TARGETS, DEFAULT_SETTINGS } from "./types";
 import { DEFAULT_CASHIER_DEPARTMENTS } from "./classification/defaultMappings";
 
-interface DashboardState {
+export interface DashboardSnapshot {
   imports: ImportedFile[];
   productMappings: Record<string, ProductMapping>;
   cashierDepartments: Record<string, string>;
   expenses: Expense[];
   targets: Targets;
   settings: AppSettings;
+}
+
+interface DashboardState extends DashboardSnapshot {
 
   addImports: (files: ImportedFile[]) => void;
   removeImport: (id: string) => void;
@@ -30,11 +33,13 @@ interface DashboardState {
 
   updateTargets: (targets: Partial<Targets>) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
+  replaceFromCloud: (snapshot: DashboardSnapshot) => void;
+  toSnapshot: () => DashboardSnapshot;
 }
 
 export const useDashboardStore = create<DashboardState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       imports: [],
       productMappings: {},
       cashierDepartments: { ...DEFAULT_CASHIER_DEPARTMENTS },
@@ -66,6 +71,25 @@ export const useDashboardStore = create<DashboardState>()(
         set((state) => ({ targets: { ...state.targets, ...targets } })),
       updateSettings: (settings) =>
         set((state) => ({ settings: { ...state.settings, ...settings } })),
+      replaceFromCloud: (snapshot) => set({
+        imports: Array.isArray(snapshot.imports) ? snapshot.imports : [],
+        productMappings: snapshot.productMappings || {},
+        cashierDepartments: snapshot.cashierDepartments || { ...DEFAULT_CASHIER_DEPARTMENTS },
+        expenses: Array.isArray(snapshot.expenses) ? snapshot.expenses : [],
+        targets: { ...DEFAULT_TARGETS, ...(snapshot.targets || {}) },
+        settings: { ...DEFAULT_SETTINGS, ...(snapshot.settings || {}) },
+      }),
+      toSnapshot: () => {
+        const state = get();
+        return {
+          imports: state.imports,
+          productMappings: state.productMappings,
+          cashierDepartments: state.cashierDepartments,
+          expenses: state.expenses,
+          targets: state.targets,
+          settings: state.settings,
+        };
+      },
     }),
     {
       name: "kp-dashboard-storage",

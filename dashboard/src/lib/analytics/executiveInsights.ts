@@ -16,6 +16,7 @@ export interface ExecutiveInsights {
   projectedMonthSales: number | null;
   requiredDailySales: number | null;
   targetAchievementPct: number | null;
+  projectedYoYGrowthPct: number | null;
   salesSincePreviousUpload: number | null;
   daysRemaining: number | null;
   alerts: ExecutiveAlert[];
@@ -25,28 +26,40 @@ function daysInclusive(start: string, end: string): number {
   return Math.floor((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1;
 }
 
+function effectiveCutoff(file: ImportedFile): string | null {
+  const candidates = [file.periodEnd, file.importedAt.slice(0, 10), new Date().toISOString().slice(0, 10)]
+    .filter((value): value is string => Boolean(value))
+    .sort();
+  return candidates[0] ?? null;
+}
+
 export function buildExecutiveInsights(
   imports: ImportedFile[],
   kpis: KpiResult,
   monthlyTarget: number,
-  cafeRevenuePerChildTarget: number
+  cafeRevenuePerChildTarget: number,
+  previousYearSameMonthSales: number
 ): ExecutiveInsights {
   const snapshots = imports
     .filter((file) => file.reportType === "SALES_BY_INVOICE" && file.status !== "UNSUPPORTED" && file.status !== "DUPLICATE")
     .sort(compareImportsNewestFirst);
   const current = snapshots[0];
   const currentSales = current ? extractInvoiceSummary(current)?.totalSalesInclVat ?? null : kpis.totalSalesInclVat;
+  const currentCutoff = current ? effectiveCutoff(current) : null;
   const previous = current
-    ? snapshots.find((file, index) => index > 0 && file.periodStart === current.periodStart && file.periodEnd !== current.periodEnd)
+    ? snapshots.find(
+        (file, index) =>
+          index > 0 && file.periodStart === current.periodStart && effectiveCutoff(file) !== currentCutoff
+      )
     : undefined;
   const previousSales = previous ? extractInvoiceSummary(previous)?.totalSalesInclVat ?? null : null;
 
   let elapsedDays: number | null = null;
   let totalDays: number | null = null;
   let daysRemaining: number | null = null;
-  if (current?.periodStart && current.periodEnd) {
-    elapsedDays = daysInclusive(current.periodStart, current.periodEnd);
-    const end = new Date(`${current.periodEnd}T00:00:00Z`);
+  if (current?.periodStart && currentCutoff) {
+    elapsedDays = daysInclusive(current.periodStart, currentCutoff);
+    const end = new Date(`${currentCutoff}T00:00:00Z`);
     const monthStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
     const startsAtMonthBeginning = current.periodStart === monthStart.toISOString().slice(0, 10);
     if (startsAtMonthBeginning) {
@@ -62,6 +75,10 @@ export function buildExecutiveInsights(
       ? Math.max(0, monthlyTarget - currentSales) / daysRemaining
       : null;
   const targetAchievementPct = currentSales !== null && monthlyTarget > 0 ? (currentSales / monthlyTarget) * 100 : null;
+  const projectedYoYGrowthPct =
+    projectedMonthSales !== null && previousYearSameMonthSales > 0
+      ? ((projectedMonthSales - previousYearSameMonthSales) / previousYearSameMonthSales) * 100
+      : null;
   const salesSincePreviousUpload = currentSales !== null && previousSales !== null ? currentSales - previousSales : null;
 
   const alerts: ExecutiveAlert[] = [];
@@ -93,20 +110,27 @@ export function buildExecutiveInsights(
   if (kpis.missingFields.length > 0) {
     alerts.push({ level: "info", title: "بيانات ناقصة", detail: `${kpis.missingFields.length} مصادر أو حقول مطلوبة لمؤشرات مكتملة.` });
   }
+  if (kpis.netSales !== null && kpis.netSales > 0 && kpis.cogs !== null && kpis.cogs / kpis.netSales < 0.01) {
+    alerts.push({
+      level: "warning",
+      title: "تكلفة البضاعة تبدو غير مكتملة",
+      detail: "تكلفة البضاعة أقل من 1% من صافي المبيعات؛ راجع تكاليف المنتجات في رواء قبل اعتماد مجمل الربح.",
+    });
+  }
   if (alerts.length === 0) {
     alerts.push({ level: "info", title: "لا توجد تنبيهات حرجة", detail: "المؤشرات المتاحة ضمن الحدود المسجلة حاليًا." });
   }
 
   return {
     periodStart: current?.periodStart ?? null,
-    periodEnd: current?.periodEnd ?? null,
+    periodEnd: currentCutoff,
     dailyRunRate,
     projectedMonthSales,
     requiredDailySales,
     targetAchievementPct,
+    projectedYoYGrowthPct,
     salesSincePreviousUpload,
     daysRemaining,
     alerts,
   };
 }
-

@@ -35,11 +35,6 @@ export default function DashboardPage() {
   const profit = calculateOperatingProfit(kpis.totalSalesInclVat, expenses);
   const capitalRecovery = calculateCapitalRecovery(profit.operatingProfit, settings.acquisitionCost);
 
-  const salesGrowthYoY =
-    kpis.totalSalesInclVat !== null && settings.previousYearSameMonthSales > 0
-      ? ((kpis.totalSalesInclVat - settings.previousYearSameMonthSales) / settings.previousYearSameMonthSales) * 100
-      : null;
-
   const salesTargetStatus = getTargetStatus(kpis.totalSalesInclVat, targets.monthlySalesTarget);
 
   const ticketRevenuePerChild =
@@ -58,8 +53,10 @@ export default function DashboardPage() {
     imports,
     kpis,
     targets.monthlySalesTarget,
-    targets.cafeRevenuePerChildTarget
+    targets.cafeRevenuePerChildTarget,
+    settings.previousYearSameMonthSales
   );
+  const salesGrowthYoY = executiveInsights.projectedYoYGrowthPct;
 
   return (
     <div className="flex flex-col gap-8">
@@ -78,7 +75,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="kp-card">
-            <div className="text-xs font-bold text-muted mb-2">هل المبيعات تتحسن؟ (مقابل نفس الشهر العام الماضي)</div>
+            <div className="text-xs font-bold text-muted mb-2">توقع نهاية الشهر مقابل نفس الشهر العام الماضي</div>
             {salesGrowthYoY === null ? (
               <div className="text-sm text-muted">{UNAVAILABLE_LABEL}</div>
             ) : (
@@ -119,8 +116,8 @@ export default function DashboardPage() {
         <div className="kp-card">
           <div className="font-black text-navy mb-2">أرقام رواء (تكلفة البضاعة وهامش الربح الإجمالي)</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KpiCard label="تكلفة البضاعة المباعة (COGS)" value={formatSar(kpis.cogs)} />
-            <KpiCard label="إجمالي قيمة الربح (من رواء)" value={formatSar(kpis.grossProfit)} />
+            <KpiCard label="تكلفة البضاعة المسجلة في رواء (COGS)" value={formatSar(kpis.cogs)} />
+            <KpiCard label="مجمل الربح وفق التكاليف المسجلة" value={formatSar(kpis.grossProfit)} />
             <KpiCard label="إجمالي الضريبة" value={formatSar(kpis.vatTotal)} />
             <KpiCard label="كمية المرتجعات" value={formatNumber(kpis.returnsQuantity)} />
           </div>

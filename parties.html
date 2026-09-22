@@ -18,7 +18,7 @@
   <header>
     <div class="container nav">
       <a class="brand" href="index.html"><img src="/assets/logo.png" alt="شعار كوكب الطفل"><div><strong>كوكب الطفل</strong><small>مركز ترفيهي للأطفال</small></div></a>
-      <nav><a href="index.html#activities">التجربة</a><a href="about.html">من نحن</a><a href="offers.html">العروض</a><a href="index.html#coffee">KP Coffee</a><a href="parties.html">الحفلات</a></nav>
+      <button class="menu-toggle" type="button" aria-label="فتح القائمة" aria-controls="site-nav" aria-expanded="false"><span></span><span></span><span></span></button><nav id="site-nav"><a href="index.html#activities">التجربة</a><a href="about.html">من نحن</a><a href="offers.html">العروض</a><a href="index.html#coffee">KP Coffee</a><a href="parties.html">الحفلات</a></nav>
       <div class="nav-actions"><a class="btn btn-secondary" href="index.html#visit">الموقع</a><a class="btn btn-primary" href="https://wa.me/966500501883?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D9%83%D9%88%D9%83%D8%A8%20%D8%A7%D9%84%D8%B7%D9%81%D9%84">واتساب</a></div>
     </div>
   </header>
@@ -134,5 +134,20 @@
       });
     })();
   </script>
+<script>
+(function(){
+  const button=document.querySelector('.menu-toggle');
+  const menu=document.getElementById('site-nav');
+  if(!button||!menu) return;
+  button.addEventListener('click',function(){
+    const open=menu.classList.toggle('mobile-open');
+    button.setAttribute('aria-expanded',open?'true':'false');
+    button.setAttribute('aria-label',open?'إغلاق القائمة':'فتح القائمة');
+  });
+  menu.addEventListener('click',function(e){
+    if(e.target.tagName==='A'){menu.classList.remove('mobile-open');button.setAttribute('aria-expanded','false');}
+  });
+})();
+</script>
 </body>
 </html>

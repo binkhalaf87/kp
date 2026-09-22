@@ -68,5 +68,20 @@
       window.addEventListener('resize',function(){if(window.innerWidth>900)closeMenu();});
     })();
   </script>
+<script>
+(function(){
+  const button=document.querySelector('.menu-toggle');
+  const menu=document.getElementById('site-nav');
+  if(!button||!menu) return;
+  button.addEventListener('click',function(){
+    const open=menu.classList.toggle('mobile-open');
+    button.setAttribute('aria-expanded',open?'true':'false');
+    button.setAttribute('aria-label',open?'إغلاق القائمة':'فتح القائمة');
+  });
+  menu.addEventListener('click',function(e){
+    if(e.target.tagName==='A'){menu.classList.remove('mobile-open');button.setAttribute('aria-expanded','false');}
+  });
+})();
+</script>
 </body>
 </html>

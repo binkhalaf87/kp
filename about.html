@@ -11,6 +11,9 @@
   <meta property="og:image" content="/assets/logo.png" />
   <meta property="og:type" content="website" />
   <link rel="icon" href="/assets/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;800&family=Tajawal:wght@400;500;700;800&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -27,9 +30,9 @@
     <section class="about-hero">
       <div class="container about-grid">
         <div>
-          <span class="eyebrow" style="background:#eef1ff;border:1px solid #dde4ff;color:var(--navy)">🪐 من نحن</span>
-          <h2 style="font-size:clamp(30px,4vw,48px);line-height:1.25;margin:14px 0 10px;color:var(--navy)">مؤسسة كوكب الطفل للترفيه</h2>
-          <p style="color:var(--muted);font-size:17px">مؤسسة كوكب الطفل للترفيه، مساحة ترفيهية للأطفال في الرياض — حي طويق، تجمع اللعب الحركي والفعاليات والتجارب الممتعة، مع جلسة مريحة للأهل في KP Coffee. هدفنا أن تكون كل زيارة مليئة بالمرح والذكريات الجميلة للعائلة بأكملها.</p>
+          <span class="eyebrow">🪐 من نحن</span>
+          <h2>مؤسسة كوكب الطفل للترفيه</h2>
+          <p>مؤسسة كوكب الطفل للترفيه، مساحة ترفيهية للأطفال في الرياض — حي طويق، تجمع اللعب الحركي والفعاليات والتجارب الممتعة، مع جلسة مريحة للأهل في KP Coffee. هدفنا أن تكون كل زيارة مليئة بالمرح والذكريات الجميلة للعائلة بأكملها.</p>
           <div class="hero-actions"><a class="btn btn-primary" href="https://wa.me/966500501883?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D8%8C%20%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A7%D9%84%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1">تواصل معنا</a><a class="btn btn-light" href="offers.html">شاهد العروض</a></div>
         </div>
         <div class="about-art"><img src="/assets/weekend.png" alt="أجواء كوكب الطفل"></div>
@@ -72,20 +75,5 @@
       window.addEventListener('resize',function(){if(window.innerWidth>900)closeMenu();});
     })();
   </script>
-<script>
-(function(){
-  const button=document.querySelector('.menu-toggle');
-  const menu=document.getElementById('site-nav');
-  if(!button||!menu) return;
-  button.addEventListener('click',function(){
-    const open=menu.classList.toggle('mobile-open');
-    button.setAttribute('aria-expanded',open?'true':'false');
-    button.setAttribute('aria-label',open?'إغلاق القائمة':'فتح القائمة');
-  });
-  menu.addEventListener('click',function(e){
-    if(e.target.tagName==='A'){menu.classList.remove('mobile-open');button.setAttribute('aria-expanded','false');}
-  });
-})();
-</script>
 </body>
 </html>

@@ -1,29 +1,33 @@
-# Kids Planet Art Contest — development branch
+# Kids Planet art contest
 
-## Status
-This branch introduces the public-facing Arabic contest page and a proposed database migration. **Not production-ready**: backend endpoints, admin upload UI, authentication, deployment wiring and testing remain to be implemented. The page fails closed if its API is unavailable; it does not fake or store votes.
+## Infrastructure
+- Railway project kidsplanet, Postgres production with tables contest_groups, contest_artworks, contest_votes.
+- Dedicated database role contest_app, scoped table privileges and RLS policies.
+- Vercel project kp has sensitive DATABASE_URL, CONTEST_SECRET, CONTEST_ADMIN_PASSWORD, and BLOB_READ_WRITE_TOKEN.
+- Public TCP proxy connects Vercel to Railway Postgres via TLS.
 
-## Requirements
-- Daily 24-hour groups (Asia/Riyadh), variable number of artwork entries
-- One vote per submitted phone AND device identifier per group; a new vote is allowed in another group
-- No OTP; phone ownership cannot be verified
-- Live counts based on committed server-side votes
-- One winner per group; ties require a published policy
-- Phone numbers normalized to +9665XXXXXXXX, then HMAC-SHA256 hashed using a secret pepper, not plain SHA
-- Device cookie random, HttpOnly/Secure/SameSite=Lax; hash server-side, do not trust client IDs
-- IP only for abuse detection/rate limiting; do not enforce one vote per IP
-- Atomic DB unique constraints; check artwork belongs to open group on server
-- Turnstile and server-side rate limiting, bot/abuse monitoring
-- Guardian consent before artwork publishing; data retention/deletion policy
+## URLs
+- /art-contest — public daily voting
+- /art-contest/results — live standings
+- /admin/art-contest — admin login, group scheduling, artwork upload, publishing and CSV export
 
-## API contract to implement
-GET /api/art-contest/current -> {group: {id,number,ends_at}|null, artworks:[{id,entry_number,display_name,image_url,votes}]}
-POST /api/art-contest/vote {artwork_id,name,phone} -> {message}, with Set-Cookie on first verified device identity.
+## Voting
+- Seven groups, each exactly 24 hours, published manually.
+- Saudi mobile normalized, one vote per phone hash and per browser device hash per group.
+- Browser proof-of-work challenge, IP velocity limit 30 votes per 10 minutes; optional Cloudflare Turnstile if configured.
+- No OTP, so cannot guarantee a unique human behind each phone.
+- 15-second polling of public counts.
+- No group is published by default; no votes accepted without a published, active group.
 
-## Remaining tasks
-1. Confirm which Vercel project serves the public static HTML. Its current static deployment may not route /api paths to the separate Next.js dashboard.
-2. Implement server-side API and atomic validation in the *actual* deployed runtime, including safe group switching.
-3. Build protected admin upload, consent, scheduling, winner review and export.
-4. Configure storage, secrets and service account; no credentials in Git.
-5. Add integration/load/security tests; run them on staging before any merge.
-6. Review legal/contest rules and prize details before opening voting.
+## Required before public contest launch
+1. Set CONTEST_ADMIN_PASSWORD to an owner-known password in Vercel; current generated password is secret and not shared.
+2. Login and upload artworks with guardian consent, schedule seven daily groups in Riyadh time and publish first group.
+3. Test end-to-end first vote, duplicates, family shared IP, expiration, concurrency, upload, admin authorization, mobile and results.
+4. Decide tie resolution, prize and consent retention policy. Check Saudi promotional contest regulations.
+5. Consider enabling Cloudflare Turnstile (TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY) for stronger bot defense.
+
+## Cautions
+- Live standings are not official winner approval.
+- CSV is compatible with Excel, not native .xlsx.
+- Group datetime-local uses browser timezone; use Asia/Riyadh.
+- Do not publish group until ready.

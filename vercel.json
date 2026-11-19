@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/art-contest",
+      "destination": "/art-contest.html"
+    },
+    {
+      "source": "/art-contest/results",
+      "destination": "/art-contest-results.html"
+    },
+    {
+      "source": "/admin/art-contest",
+      "destination": "/admin/art-contest.html"
+    }
+  ]
+}

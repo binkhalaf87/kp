@@ -29,17 +29,17 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 <label>اسم المصوّت<input name="name" required maxlength="80" autocomplete="name"></label>
 <label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
 <p class="notice">بدون رمز تحقق؛ لا يمكن ضمان أن كل رقم يخص شخصًا مختلفًا.</p>
-<p id="vote-message" role="status"></p><button class="vote-submit" type="submit">تأكيد التصويت</button> <button type="button" id="cancel-vote">إلغاء</button>
+<div id="turnstile-widget"></div><p id="vote-message" role="status"></p><button class="vote-submit" type="submit">تأكيد التصويت</button> <button type="button" id="cancel-vote">إلغاء</button>
 </form></dialog>
 <script>
 const grid=document.getElementById('art-grid'),statusBox=document.getElementById('contest-status'),dialog=document.getElementById('vote-dialog'),form=document.getElementById('vote-form');
-let currentGroup=null,chosen=null;
+let currentGroup=null,chosen=null,siteKey=null,widgetId=null;
 document.getElementById('cancel-vote').onclick=()=>dialog.close();
 async function load(){
  try{
   const res=await fetch('/api/art-contest/current',{cache:'no-store'});
   if(!res.ok)throw Error('unavailable');
-  const data=await res.json();currentGroup=data.group||null;grid.replaceChildren();
+  const data=await res.json();currentGroup=data.group||null;siteKey=data.turnstileSiteKey||null;grid.replaceChildren();
   if(!currentGroup){statusBox.textContent='لا توجد مجموعة مفتوحة للتصويت حاليًا.';return;}
   statusBox.textContent='المجموعة '+currentGroup.number+' — التصويت مفتوح حتى '+new Date(currentGroup.ends_at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
   for(const art of data.artworks||[]){
@@ -47,20 +47,31 @@ async function load(){
    const img=document.createElement('img');img.src=art.image_url;img.alt='رسمة المشارك '+art.display_name;img.loading='lazy';
    const details=document.createElement('div'),name=document.createElement('h3'),votes=document.createElement('p'),btn=document.createElement('button');
    name.textContent=art.display_name+' — #'+art.entry_number;votes.textContent=(art.votes||0)+' صوت';btn.textContent='صوّت لهذه الرسمة';
-   btn.onclick=()=>{chosen=art;document.getElementById('chosen-art').textContent='الرسمة: '+art.display_name;document.getElementById('vote-message').textContent='';dialog.showModal()};
+   btn.onclick=()=>{chosen=art;document.getElementById('chosen-art').textContent='الرسمة: '+art.display_name;document.getElementById('vote-message').textContent='';dialog.showModal();if(siteKey){if(window.turnstile){if(widgetId!==null)window.turnstile.remove(widgetId);widgetId=window.turnstile.render('#turnstile-widget',{sitekey:siteKey})}else document.getElementById('vote-message').textContent='جاري تحميل التحقق الأمني، أعد فتح النافذة بعد لحظات'}};
    details.append(name,votes,btn);card.append(img,details);grid.append(card);
   }
  }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
 }
+async function solveProof(){
+ const r=await fetch('/api/art-contest/challenge',{cache:'no-store'});if(!r.ok)throw Error('challenge');
+ const proof=await r.json(),encoder=new TextEncoder();
+ for(let counter=0;counter<2000000;counter++){
+  const bytes=await crypto.subtle.digest('SHA-256',encoder.encode(proof.nonce+':'+counter));
+  const a=new Uint8Array(bytes);
+  if(a[0]===0&&a[1]<16)return {...proof,counter};
+ }
+ throw Error('challenge timeout');
+}
 form.onsubmit=async(e)=>{
  e.preventDefault();if(!chosen||!currentGroup)return;
  const btn=form.querySelector('[type=submit]');btn.disabled=true;
- const payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim()};
+ let payload;
+ try{document.getElementById('vote-message').textContent='جاري التحقق من التصويت...';payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):'',proof:siteKey?null:await solveProof()}}catch{document.getElementById('vote-message').textContent='تعذر التحقق، أعد المحاولة';btn.disabled=false;return}
  try{const r=await fetch('/api/art-contest/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  const data=await r.json();document.getElementById('vote-message').textContent=data.message||'تعذر تسجيل التصويت';
  if(r.ok){setTimeout(()=>{dialog.close();load()},1100)}
  }catch{document.getElementById('vote-message').textContent='تعذر الاتصال بالخادم. حاول مجددًا.'}
- finally{btn.disabled=false}
+ finally{btn.disabled=false;if(window.turnstile&&widgetId!==null)window.turnstile.reset(widgetId)}
 };
-load();
-</script></body></html>
+load();setInterval(load,15000);
+</script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script></body></html>

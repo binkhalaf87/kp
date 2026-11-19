@@ -29,7 +29,7 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 <dialog class="zoom-dialog" id="zoom-dialog" aria-label="تكبير الرسمة"><button type="button" id="close-zoom">إغلاق ✕</button><img id="zoom-image" alt=""></dialog>
 <dialog id="vote-dialog"><form id="vote-form"><h2>تأكيد التصويت</h2><p id="chosen-art"></p>
 <label>اسم المصوّت<input name="name" required maxlength="80" autocomplete="name"></label>
-<label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
+<label>رقم الجوال السعودي<input name="phone" required inputmode="tel" autocomplete="tel" dir="ltr" placeholder="05XXXXXXXX" aria-describedby="phone-hint"></label><small id="phone-hint" class="notice">مثال: 0512345678 أو ‎+966512345678‎</small>
 <p class="notice">بدون رمز تحقق؛ لا يمكن ضمان أن كل رقم يخص شخصًا مختلفًا.</p>
 <div id="turnstile-widget"></div><p id="vote-message" role="status"></p><button class="vote-submit" type="submit">تأكيد التصويت</button> <button type="button" id="cancel-vote">إلغاء</button>
 </form></dialog>
@@ -95,6 +95,7 @@ async function load(){
   }
  }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
 }
+function normalizePhone(v){let s=String(v||'').replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[\s\-().\u200e\u200f]/g,'');if(s.startsWith('00'))s='+'+s.slice(2);if(/^9665\d{8}$/.test(s))s='+'+s;if(/^05\d{8}$/.test(s))s='+966'+s.slice(1);if(/^5\d{8}$/.test(s))s='+966'+s;return /^\+9665\d{8}$/.test(s)?s:null}
 async function solveProof(){
  const r=await fetch('/api/art-contest/challenge',{cache:'no-store'});if(!r.ok)throw Error('challenge');
  const proof=await r.json(),encoder=new TextEncoder();
@@ -107,14 +108,16 @@ async function solveProof(){
 }
 form.onsubmit=async(e)=>{
  e.preventDefault();if(!chosen||!currentGroup){document.getElementById('vote-message').textContent='يرجى اختيار رسمة من المجموعة المفتوحة';return;}
- const btn=form.querySelector('[type=submit]');btn.disabled=true;
+ const btn=form.querySelector('[type=submit]');if(btn.disabled)return;
+ if(!normalizePhone(form.elements.phone.value)){document.getElementById('vote-message').textContent='رقم الجوال غير صحيح. اكتبه بصيغة 05XXXXXXXX';form.elements.phone.focus();return}
+ btn.disabled=true;let done=false;
  let payload;
- try{document.getElementById('vote-message').textContent='جاري التحقق من التصويت...';payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):'',proof:siteKey?null:await solveProof()}}catch{document.getElementById('vote-message').textContent='تعذر التحقق، أعد المحاولة';btn.disabled=false;return}
+ try{document.getElementById('vote-message').textContent='جاري التحقق من التصويت...';payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:normalizePhone(form.elements.phone.value),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):'',proof:siteKey?null:await solveProof()}}catch{document.getElementById('vote-message').textContent='تعذر التحقق، أعد المحاولة';btn.disabled=false;return}
  try{const r=await fetch('/api/art-contest/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  const data=await r.json();document.getElementById('vote-message').textContent=data.message||'تعذر تسجيل التصويت';
- if(r.ok){setTimeout(()=>{dialog.close();load()},1100)}
+ if(r.ok){done=true;setTimeout(()=>{dialog.close();btn.disabled=false;load()},1100)}
  }catch{document.getElementById('vote-message').textContent='تعذر الاتصال بالخادم. حاول مجددًا.'}
- finally{btn.disabled=false;if(window.turnstile&&widgetId!==null)window.turnstile.reset(widgetId)}
+ finally{if(!done)btn.disabled=false;if(window.turnstile&&widgetId!==null)window.turnstile.reset(widgetId)}
 };
 load();loadPastResults();setInterval(()=>{if(!dialog.open&&!zoomDialog.open)load();loadPastResults()},15000);
 </script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script></body></html>

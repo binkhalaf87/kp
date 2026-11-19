@@ -52,10 +52,21 @@ async function load(){
   }
  }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
 }
+async function solveProof(){
+ const r=await fetch('/api/art-contest/challenge',{cache:'no-store'});if(!r.ok)throw Error('challenge');
+ const proof=await r.json(),encoder=new TextEncoder();
+ for(let counter=0;counter<2000000;counter++){
+  const bytes=await crypto.subtle.digest('SHA-256',encoder.encode(proof.nonce+':'+counter));
+  const a=new Uint8Array(bytes);
+  if(a[0]===0&&a[1]<16)return {...proof,counter};
+ }
+ throw Error('challenge timeout');
+}
 form.onsubmit=async(e)=>{
  e.preventDefault();if(!chosen||!currentGroup)return;
  const btn=form.querySelector('[type=submit]');btn.disabled=true;
- const payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):''};
+ let payload;
+ try{document.getElementById('vote-message').textContent='جاري التحقق من التصويت...';payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):'',proof:siteKey?null:await solveProof()}}catch{document.getElementById('vote-message').textContent='تعذر التحقق، أعد المحاولة';btn.disabled=false;return}
  try{const r=await fetch('/api/art-contest/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
  const data=await r.json();document.getElementById('vote-message').textContent=data.message||'تعذر تسجيل التصويت';
  if(r.ok){setTimeout(()=>{dialog.close();load()},1100)}

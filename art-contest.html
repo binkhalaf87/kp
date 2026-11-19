@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مسابقة أفضل رسام | كوكب الطفل</title><meta name="description" content="شاهد إبداعات أطفال كوكب الطفل وصوّت لرسامك المفضل">
+<link rel="stylesheet" href="styles.css"><style>
+.contest{max-width:1080px;margin:auto;padding:32px 18px;font-family:Tajawal,Arial,sans-serif;color:#182047}
+.contest-hero{background:linear-gradient(125deg,#e8d8ff,#fff0cf);padding:35px 20px;border-radius:24px;text-align:center}
+.contest-hero h1{font-size:clamp(28px,5vw,48px);margin:8px 0}
+.contest-status{margin:20px 0;padding:15px;background:#f5f3ff;border-radius:14px}
+.contest-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
+.art-card{border:1px solid #e5e2f0;border-radius:16px;overflow:hidden;background:white}
+.art-card img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#fafafa}
+.art-card div{padding:14px}
+.art-card button,.vote-submit{background:#6333b2;color:white;border:0;padding:12px 18px;border-radius:10px;cursor:pointer}
+.art-card button:disabled,.vote-submit:disabled{opacity:.5;cursor:not-allowed}
+.contest-offer{background:#fff4dd;padding:24px;border-radius:18px;text-align:center;margin:28px 0}
+dialog{border:0;border-radius:18px;max-width:420px;width:calc(100% - 32px);padding:24px;box-shadow:0 15px 60px #0003}
+dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialog input{width:100%;padding:12px;border:1px solid #ccc;border-radius:8px}
+.notice{font-size:13px;color:#555}#vote-message{min-height:1.5em}
+</style></head><body>
+<main class="contest">
+<header><a href="index.html">← العودة إلى كوكب الطفل</a></header>
+<section class="contest-hero"><div>🎨 🪐 🏆</div><h1>مسابقة أفضل رسام</h1><p>كل يوم مجموعة جديدة من إبداعات أطفالنا، وفائز جديد!</p><strong>صوت واحد لكل رقم جوال في كل مجموعة يومية</strong></section>
+<section class="contest-status" aria-live="polite" id="contest-status">المسابقة غير مفعّلة بعد. سيتم عرض الرسومات عند إطلاق النظام.</section>
+<section><h2>رسومات المجموعة الحالية</h2><div id="art-grid" class="contest-grid"></div></section>
+<section class="contest-offer"><h2>🎉 عرض الإجازة — 65 ريال</h2><p>دخول غير محدد المدة + فشار 🍿 + عصير 🧃</p><p>كوكب الطفل للترفيه — حي طويق</p></section>
+<p class="notice">عند بدء التصويت، تُستخدم بيانات الاسم والجوال وملف ارتباط للجهاز لمنع التكرار. عنوان IP يُستخدم لرصد إساءة الاستخدام، ولا يُحظر التصويت لمجرد مشاركة الشبكة.</p>
+</main>
+<dialog id="vote-dialog"><form id="vote-form"><h2>تأكيد التصويت</h2><p id="chosen-art"></p>
+<label>اسم المصوّت<input name="name" required maxlength="80" autocomplete="name"></label>
+<label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
+<p class="notice">بدون رمز تحقق؛ لا يمكن ضمان أن كل رقم يخص شخصًا مختلفًا.</p>
+<p id="vote-message" role="status"></p><button class="vote-submit" type="submit">تأكيد التصويت</button> <button type="button" id="cancel-vote">إلغاء</button>
+</form></dialog>
+<script>
+const grid=document.getElementById('art-grid'),statusBox=document.getElementById('contest-status'),dialog=document.getElementById('vote-dialog'),form=document.getElementById('vote-form');
+let currentGroup=null,chosen=null;
+document.getElementById('cancel-vote').onclick=()=>dialog.close();
+async function load(){
+ try{
+  const res=await fetch('/api/art-contest/current',{cache:'no-store'});
+  if(!res.ok)throw Error('unavailable');
+  const data=await res.json();currentGroup=data.group||null;grid.replaceChildren();
+  if(!currentGroup){statusBox.textContent='لا توجد مجموعة مفتوحة للتصويت حاليًا.';return;}
+  statusBox.textContent='المجموعة '+currentGroup.number+' — التصويت مفتوح حتى '+new Date(currentGroup.ends_at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
+  for(const art of data.artworks||[]){
+   const card=document.createElement('article');card.className='art-card';
+   const img=document.createElement('img');img.src=art.image_url;img.alt='رسمة المشارك '+art.display_name;img.loading='lazy';
+   const details=document.createElement('div'),name=document.createElement('h3'),votes=document.createElement('p'),btn=document.createElement('button');
+   name.textContent=art.display_name+' — #'+art.entry_number;votes.textContent=(art.votes||0)+' صوت';btn.textContent='صوّت لهذه الرسمة';
+   btn.onclick=()=>{chosen=art;document.getElementById('chosen-art').textContent='الرسمة: '+art.display_name;document.getElementById('vote-message').textContent='';dialog.showModal()};
+   details.append(name,votes,btn);card.append(img,details);grid.append(card);
+  }
+ }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
+}
+form.onsubmit=async(e)=>{
+ e.preventDefault();if(!chosen||!currentGroup)return;
+ const btn=form.querySelector('[type=submit]');btn.disabled=true;
+ const payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim()};
+ try{const r=await fetch('/api/art-contest/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ const data=await r.json();document.getElementById('vote-message').textContent=data.message||'تعذر تسجيل التصويت';
+ if(r.ok){setTimeout(()=>{dialog.close();load()},1100)}
+ }catch{document.getElementById('vote-message').textContent='تعذر الاتصال بالخادم. حاول مجددًا.'}
+ finally{btn.disabled=false}
+};
+load();
+</script></body></html>

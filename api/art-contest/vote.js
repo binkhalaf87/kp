@@ -1,0 +1,14 @@
+import {db,json,device,hash,normalizePhone,captcha,sameOrigin} from './_lib.js';
+export default async function handler(req,res){if(req.method!=='POST')return json(res,405,{message:'Method not allowed'});if(!sameOrigin(req))return json(res,403,{message:'طلب غير مسموح'});try{
+const body=req.body||{};const name=String(body.name||'').trim(),phone=normalizePhone(body.phone),id=String(body.artwork_id||'');
+if(name.length<2||name.length>80||!phone||!/^[a-f0-9-]{36}$/i.test(id))return json(res,400,{message:'تأكد من الاسم ورقم الجوال والرسمة'});
+const ip=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();if(!(await captcha(body.turnstile_token,ip)))return json(res,403,{message:'تعذر التحقق من الطلب. أعد المحاولة'});
+const dev=device(req,res);const sql=db();
+const result=await sql`insert into contest_votes(group_id,artwork_id,voter_name,phone_hash,device_hash,ip_hash)
+select g.id,a.id,${name},${hash(phone)},${hash(dev)},${hash(ip||'unknown')}
+from contest_artworks a join contest_groups g on g.id=a.group_id
+where a.id=${id}::uuid and a.guardian_consent_at is not null and g.published=true and g.starts_at<=now() and g.ends_at>now()
+on conflict do nothing returning id`;
+if(result.length)return json(res,200,{message:'تم تسجيل صوتك بنجاح 🎨'});
+return json(res,409,{message:'سبق التصويت بهذه البيانات أو انتهت فترة المجموعة'});
+}catch(e){console.error('vote error',e.message);return json(res,503,{message:'تعذر تسجيل الصوت حاليًا'})}}

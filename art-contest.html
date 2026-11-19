@@ -29,7 +29,7 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 <dialog class="zoom-dialog" id="zoom-dialog" aria-label="تكبير الرسمة"><button type="button" id="close-zoom">إغلاق ✕</button><img id="zoom-image" alt=""></dialog>
 <dialog id="vote-dialog"><form id="vote-form"><h2>تأكيد التصويت</h2><p id="chosen-art"></p>
 <label>اسم المصوّت<input name="name" required maxlength="80" autocomplete="name"></label>
-<label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
+<label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
 <p class="notice">بدون رمز تحقق؛ لا يمكن ضمان أن كل رقم يخص شخصًا مختلفًا.</p>
 <div id="turnstile-widget"></div><p id="vote-message" role="status"></p><button class="vote-submit" type="submit">تأكيد التصويت</button> <button type="button" id="cancel-vote">إلغاء</button>
 </form></dialog>
@@ -83,7 +83,7 @@ async function solveProof(){
  throw Error('challenge timeout');
 }
 form.onsubmit=async(e)=>{
- e.preventDefault();if(!chosen||!currentGroup)return;
+ e.preventDefault();if(!chosen||!currentGroup){document.getElementById('vote-message').textContent='يرجى اختيار رسمة من المجموعة المفتوحة';return;}
  const btn=form.querySelector('[type=submit]');btn.disabled=true;
  let payload;
  try{document.getElementById('vote-message').textContent='جاري التحقق من التصويت...';payload={artwork_id:chosen.id,name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),turnstile_token:window.turnstile&&widgetId!==null?window.turnstile.getResponse(widgetId):'',proof:siteKey?null:await solveProof()}}catch{document.getElementById('vote-message').textContent='تعذر التحقق، أعد المحاولة';btn.disabled=false;return}

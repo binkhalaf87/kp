@@ -1,26 +1,33 @@
-# Art contest — deployment checklist
+# Kids Planet art contest
 
-Implemented: static public page, public results, admin page, serverless voting API, admin API, Neon Postgres SQL schema, Vercel Blob uploads, phone/device uniqueness, Cloudflare Turnstile verification.
+## Infrastructure
+- Railway project kidsplanet, Postgres production with tables contest_groups, contest_artworks, contest_votes.
+- Dedicated database role contest_app, scoped table privileges and RLS policies.
+- Vercel project kp has sensitive DATABASE_URL, CONTEST_SECRET, CONTEST_ADMIN_PASSWORD, and BLOB_READ_WRITE_TOKEN.
+- Public TCP proxy connects Vercel to Railway Postgres via TLS.
 
 ## URLs
-- /art-contest.html
-- /art-contest-results.html
-- /admin/art-contest.html
+- /art-contest — public daily voting
+- /art-contest/results — live standings
+- /admin/art-contest — admin login, group scheduling, artwork upload, publishing and CSV export
 
-## Mandatory provisioning before opening voting
-1. Provision a PostgreSQL database (e.g. Neon) and attach DATABASE_URL to Vercel project kp.
-2. Apply contest/schema.sql to that database using a secure admin console. The migration is NOT applied automatically.
-3. Set CONTEST_SECRET to a randomly generated >=32-character secret and CONTEST_ADMIN_PASSWORD to a distinct strong password, in Vercel encrypted production variables.
-4. Create Cloudflare Turnstile widget for www.kidsplanet.sa; configure TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY in Vercel. The voting endpoint **fails closed** if missing.
-5. Ensure BLOB_READ_WRITE_TOKEN is available in project kp (Blob store kidsplanet-art-contest).
-6. Redeploy and run end-to-end tests, including simultaneous votes, invalid phone, cookie resets, family IP, consent, time boundaries and upload.
-7. Agree tie policy and retention/deletion policy; review local contest requirements before launch.
+## Voting
+- Seven groups, each exactly 24 hours, published manually.
+- Saudi mobile normalized, one vote per phone hash and per browser device hash per group.
+- Browser proof-of-work challenge, IP velocity limit 30 votes per 10 minutes; optional Cloudflare Turnstile if configured.
+- No OTP, so cannot guarantee a unique human behind each phone.
+- 15-second polling of public counts.
+- No group is published by default; no votes accepted without a published, active group.
 
-## Notes
-- No OTP: one phone number per group is not proof of one real person.
-- Public results show live counts and group leader, not formally approved winner.
-- Admin export currently CSV compatible with Excel, not XLSX.
-- All dates are stored in UTC; admin datetime-local input follows the browser timezone. Set device to Asia/Riyadh when scheduling.
-- Upload limit 3 MB; public image URLs.
-- Site is static HTML on Vercel with serverless functions under api/.
-- DO NOT publish groups until all checks pass.
+## Required before public contest launch
+1. Set CONTEST_ADMIN_PASSWORD to an owner-known password in Vercel; current generated password is secret and not shared.
+2. Login and upload artworks with guardian consent, schedule seven daily groups in Riyadh time and publish first group.
+3. Test end-to-end first vote, duplicates, family shared IP, expiration, concurrency, upload, admin authorization, mobile and results.
+4. Decide tie resolution, prize and consent retention policy. Check Saudi promotional contest regulations.
+5. Consider enabling Cloudflare Turnstile (TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY) for stronger bot defense.
+
+## Cautions
+- Live standings are not official winner approval.
+- CSV is compatible with Excel, not native .xlsx.
+- Group datetime-local uses browser timezone; use Asia/Riyadh.
+- Do not publish group until ready.

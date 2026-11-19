@@ -20,3 +20,11 @@ alter table contest_groups enable row level security;
 alter table contest_artworks enable row level security;
 alter table contest_votes enable row level security;
 -- Run using the database owner connection; never expose the DB connection string in frontend code.
+
+-- Application role is created separately by the Railway migration function.
+-- Grant only contest tables and scope policies to contest_app.
+GRANT USAGE ON SCHEMA public TO contest_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON contest_groups, contest_artworks, contest_votes TO contest_app;
+CREATE POLICY contest_app_policy ON contest_groups FOR ALL TO contest_app USING (true) WITH CHECK (true);
+CREATE POLICY contest_app_policy ON contest_artworks FOR ALL TO contest_app USING (true) WITH CHECK (true);
+CREATE POLICY contest_app_policy ON contest_votes FOR ALL TO contest_app USING (true) WITH CHECK (true);

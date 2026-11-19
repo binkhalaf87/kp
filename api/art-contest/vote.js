@@ -1,9 +1,12 @@
+import {verifyProof} from './challenge.js';
 import {db,json,device,hash,normalizePhone,captcha,sameOrigin} from './_lib.js';
 export default async function handler(req,res){if(req.method!=='POST')return json(res,405,{message:'Method not allowed'});if(!sameOrigin(req))return json(res,403,{message:'طلب غير مسموح'});try{
 const body=req.body||{};const name=String(body.name||'').trim(),phone=normalizePhone(body.phone),id=String(body.artwork_id||'');
 if(name.length<2||name.length>80||!phone||!/^[a-f0-9-]{36}$/i.test(id))return json(res,400,{message:'تأكد من الاسم ورقم الجوال والرسمة'});
-const ip=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();if(!(await captcha(body.turnstile_token,ip)))return json(res,403,{message:'تعذر التحقق من الطلب. أعد المحاولة'});
+const ip=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();if(process.env.TURNSTILE_SECRET_KEY ? !(await captcha(body.turnstile_token,ip)) : !verifyProof(body.proof))return json(res,403,{message:'تعذر التحقق من الطلب. أعد المحاولة'});
 const dev=device(req,res);const sql=db();
+const recent=await sql`select count(*)::int as n from contest_votes where ip_hash=${hash(ip||'unknown')} and created_at>now()-interval '10 minutes'`;
+if(recent[0].n>=30)return json(res,429,{message:'عدد كبير من المحاولات. حاول لاحقًا'});
 const result=await sql`insert into contest_votes(group_id,artwork_id,voter_name,phone_hash,device_hash,ip_hash)
 select g.id,a.id,${name},${hash(phone)},${hash(dev)},${hash(ip||'unknown')}
 from contest_artworks a join contest_groups g on g.id=a.group_id

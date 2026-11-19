@@ -9,7 +9,7 @@
 .contest-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
 .art-card{border:1px solid #e5e2f0;border-radius:16px;overflow:hidden;background:white}
 .art-card img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#fafafa}
-.art-card div{padding:14px}
+.art-card div{padding:14px}.art-card h3{margin:0 0 10px;font-size:18px}.art-card .vote-count{font-weight:800;color:#6333b2;font-size:20px;margin:10px 0}.art-image-button{display:block;width:100%;padding:0!important;border:0!important;background:#fafafa!important;border-radius:0!important;cursor:zoom-in!important}.art-image-button img{display:block}.past-group{margin:25px 0}.past-group h3{margin:0 0 12px}.art-card .closed-note{color:#666;font-size:13px;margin:6px 0}.zoom-dialog{max-width:min(960px,96vw);width:max-content;padding:12px;background:white}.zoom-dialog img{display:block;max-width:min(900px,90vw);max-height:78vh;object-fit:contain}.zoom-dialog button{display:block;margin:0 0 8px auto;background:#6333b2;color:#fff;border:0;border-radius:8px;padding:8px 16px;cursor:pointer}
 .art-card button,.vote-submit{background:#6333b2;color:white;border:0;padding:12px 18px;border-radius:10px;cursor:pointer}
 .art-card button:disabled,.vote-submit:disabled{opacity:.5;cursor:not-allowed}
 .contest-offer{background:#fff4dd;padding:24px;border-radius:18px;text-align:center;margin:28px 0}
@@ -22,9 +22,11 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 <section class="contest-hero"><div>🎨 🪐 🏆</div><h1>مسابقة أفضل رسام</h1><p>كل يوم مجموعة جديدة من إبداعات أطفالنا، وفائز جديد!</p><strong>صوت واحد لكل رقم جوال في كل مجموعة يومية</strong></section>
 <section class="contest-status" aria-live="polite" id="contest-status">المسابقة غير مفعّلة بعد. سيتم عرض الرسومات عند إطلاق النظام.</section>
 <section><h2>رسومات المجموعة الحالية</h2><div id="art-grid" class="contest-grid"></div></section>
+<section id="past-results-section"><h2>نتائج المجموعات السابقة</h2><p class="notice">تُعرض الأصوات المسجلة، ويُعتمد الفائز بعد مراجعة الإدارة.</p><div id="past-results">جاري تحميل النتائج...</div></section>
 <section class="contest-offer"><h2>🎉 عرض الإجازة — 65 ريال</h2><p>دخول غير محدد المدة + فشار 🍿 + عصير 🧃</p><p>كوكب الطفل للترفيه — حي طويق</p></section>
 <p class="notice">عند بدء التصويت، تُستخدم بيانات الاسم والجوال وملف ارتباط للجهاز لمنع التكرار. عنوان IP يُستخدم لرصد إساءة الاستخدام، ولا يُحظر التصويت لمجرد مشاركة الشبكة.</p>
 </main>
+<dialog class="zoom-dialog" id="zoom-dialog" aria-label="تكبير الرسمة"><button type="button" id="close-zoom">إغلاق ✕</button><img id="zoom-image" alt=""></dialog>
 <dialog id="vote-dialog"><form id="vote-form"><h2>تأكيد التصويت</h2><p id="chosen-art"></p>
 <label>اسم المصوّت<input name="name" required maxlength="80" autocomplete="name"></label>
 <label>رقم الجوال السعودي<input name="phone" required inputmode="tel" pattern="(05[0-9]{8}|\\+9665[0-9]{8})" placeholder="05XXXXXXXX"></label>
@@ -35,6 +37,29 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 const grid=document.getElementById('art-grid'),statusBox=document.getElementById('contest-status'),dialog=document.getElementById('vote-dialog'),form=document.getElementById('vote-form');
 let currentGroup=null,chosen=null,siteKey=null,widgetId=null;
 document.getElementById('cancel-vote').onclick=()=>dialog.close();
+const zoomDialog=document.getElementById('zoom-dialog'),zoomImage=document.getElementById('zoom-image');
+document.getElementById('close-zoom').onclick=()=>zoomDialog.close();
+zoomDialog.addEventListener('click',e=>{if(e.target===zoomDialog)zoomDialog.close()});
+function zoom(art){zoomImage.src=art.image_url;zoomImage.alt='رسمة '+art.display_name;zoomDialog.showModal()}
+function artCard(art,canVote){
+ const card=document.createElement('article');card.className='art-card';
+ const imageButton=document.createElement('button');imageButton.className='art-image-button';imageButton.type='button';imageButton.title='اضغط لتكبير الرسمة';imageButton.setAttribute('aria-label','تكبير رسمة '+art.display_name);
+ const img=document.createElement('img');img.src=art.image_url;img.alt='رسمة '+art.display_name;img.loading='lazy';imageButton.append(img);imageButton.onclick=()=>zoom(art);
+ const details=document.createElement('div'),name=document.createElement('h3'),votes=document.createElement('p');
+ name.textContent=art.display_name+' — مشاركة #'+art.entry_number;votes.className='vote-count';votes.textContent=(art.votes||0)+' صوت';
+ details.append(name,votes);
+ if(canVote){const btn=document.createElement('button');btn.textContent='صوّت لهذه الرسمة';btn.onclick=()=>{chosen=art;document.getElementById('chosen-art').textContent='الرسمة: '+art.display_name;document.getElementById('vote-message').textContent='';dialog.showModal();if(siteKey){if(window.turnstile){if(widgetId!==null)window.turnstile.remove(widgetId);widgetId=window.turnstile.render('#turnstile-widget',{sitekey:siteKey})}else document.getElementById('vote-message').textContent='جاري تحميل التحقق الأمني، أعد فتح النافذة بعد لحظات'}};details.append(btn)}
+ else{const note=document.createElement('p');note.className='closed-note';note.textContent='انتهى التصويت لهذه المجموعة';details.append(note)}
+ card.append(imageButton,details);return card;
+}
+async function loadPastResults(){
+ const root=document.getElementById('past-results');
+ try{const res=await fetch('/api/art-contest/results',{cache:'no-store'});if(!res.ok)throw Error('unavailable');const data=await res.json();const groups=new Map();
+ for(const art of data.results||[]){if(Date.now()<new Date(art.ends_at).getTime())continue;if(!groups.has(art.number))groups.set(art.number,[]);groups.get(art.number).push(art)}
+ root.replaceChildren();if(!groups.size){root.textContent='لا توجد مجموعات منتهية بعد.';return}
+ for(const [number,arts] of groups){const section=document.createElement('section'),title=document.createElement('h3'),cards=document.createElement('div');section.className='past-group';title.textContent='المجموعة '+number;cards.className='contest-grid';for(const art of arts)cards.append(artCard(art,false));section.append(title,cards);root.append(section)}
+ }catch{root.textContent='تعذر تحميل نتائج المجموعات السابقة حاليًا.'}
+}
 async function load(){
  try{
   const res=await fetch('/api/art-contest/current',{cache:'no-store'});
@@ -43,12 +68,7 @@ async function load(){
   if(!currentGroup){statusBox.textContent='لا توجد مجموعة مفتوحة للتصويت حاليًا.';return;}
   statusBox.textContent='المجموعة '+currentGroup.number+' — التصويت مفتوح حتى '+new Date(currentGroup.ends_at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
   for(const art of data.artworks||[]){
-   const card=document.createElement('article');card.className='art-card';
-   const img=document.createElement('img');img.src=art.image_url;img.alt='رسمة المشارك '+art.display_name;img.loading='lazy';
-   const details=document.createElement('div'),name=document.createElement('h3'),votes=document.createElement('p'),btn=document.createElement('button');
-   name.textContent=art.display_name+' — #'+art.entry_number;votes.textContent=(art.votes||0)+' صوت';btn.textContent='صوّت لهذه الرسمة';
-   btn.onclick=()=>{chosen=art;document.getElementById('chosen-art').textContent='الرسمة: '+art.display_name;document.getElementById('vote-message').textContent='';dialog.showModal();if(siteKey){if(window.turnstile){if(widgetId!==null)window.turnstile.remove(widgetId);widgetId=window.turnstile.render('#turnstile-widget',{sitekey:siteKey})}else document.getElementById('vote-message').textContent='جاري تحميل التحقق الأمني، أعد فتح النافذة بعد لحظات'}};
-   details.append(name,votes,btn);card.append(img,details);grid.append(card);
+   grid.append(artCard(art,true));
   }
  }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
 }
@@ -73,5 +93,5 @@ form.onsubmit=async(e)=>{
  }catch{document.getElementById('vote-message').textContent='تعذر الاتصال بالخادم. حاول مجددًا.'}
  finally{btn.disabled=false;if(window.turnstile&&widgetId!==null)window.turnstile.reset(widgetId)}
 };
-load();setInterval(load,15000);
+load();loadPastResults();setInterval(()=>{if(!dialog.open&&!zoomDialog.open)load();loadPastResults()},15000);
 </script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script></body></html>

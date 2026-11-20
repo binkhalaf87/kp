@@ -19,9 +19,9 @@ dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialo
 </style></head><body>
 <main class="contest">
 <header><a href="index.html">← العودة إلى كوكب الطفل</a></header>
-<section class="contest-hero"><div>🎨 🪐 🏆</div><h1>مسابقة أفضل رسام</h1><p>كل يوم مجموعة جديدة من إبداعات أطفالنا، وفائز جديد!</p><strong>صوت واحد لكل رقم جوال في كل مجموعة يومية</strong></section>
+<section class="contest-hero"><div>🎨 🪐 🏆</div><h1>مسابقة أفضل رسام</h1><p>مجموعات من إبداعات أطفالنا — التصويت لكل مجموعة لمدة 3 أيام!</p><strong>صوت واحد لكل رقم جوال في كل مجموعة</strong></section>
 <section class="contest-status" aria-live="polite" id="contest-status">المسابقة غير مفعّلة بعد. سيتم عرض الرسومات عند إطلاق النظام.</section>
-<section><h2>رسومات المجموعة الحالية</h2><div id="art-grid" class="contest-grid"></div></section>
+<section><h2>رسومات المجموعات المفتوحة</h2><div id="art-grid"></div></section>
 <section id="past-results-section"><h2>مجموعات المسابقة</h2><p class="notice">اختر مجموعة لعرض رسومات المشاركين وأصواتهم. المجموعات المنتهية للعرض فقط.</p><div id="group-list" class="group-list" aria-label="مجموعات المسابقة">جاري تحميل المجموعات...</div><div id="past-results" aria-live="polite"></div></section>
 <section class="contest-offer"><h2>🎉 عرض الإجازة — 65 ريال</h2><p>دخول غير محدد المدة + فشار 🍿 + عصير 🧃</p><p>كوكب الطفل للترفيه — حي طويق</p></section>
 <p class="notice">عند بدء التصويت، تُستخدم بيانات الاسم والجوال وملف ارتباط للجهاز لمنع التكرار. عنوان IP يُستخدم لرصد إساءة الاستخدام، ولا يُحظر التصويت لمجرد مشاركة الشبكة.</p>
@@ -89,9 +89,16 @@ async function load(){
   if(!res.ok)throw Error('unavailable');
   const data=await res.json();currentGroup=data.group||null;siteKey=data.turnstileSiteKey||null;grid.replaceChildren();
   if(!currentGroup){statusBox.textContent='لا توجد مجموعة مفتوحة للتصويت حاليًا.';return;}
-  statusBox.textContent='المجموعة '+currentGroup.number+' — التصويت مفتوح حتى '+new Date(currentGroup.ends_at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
-  for(const art of data.artworks||[]){
-   grid.append(artCard(art,true));
+  const groups=data.groups||[currentGroup];
+  statusBox.textContent='المجموعات المفتوحة للتصويت: '+groups.map(g=>g.number).join('، ');
+  for(const group of groups){
+   const section=document.createElement('section'),title=document.createElement('h3'),cards=document.createElement('div');
+   title.textContent='المجموعة '+group.number+' — حتى '+new Date(group.ends_at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'});
+   cards.className='contest-grid';
+   const arts=(data.artworks||[]).filter(a=>a.group_id===group.id||(!a.group_id&&groups.length===1));
+   for(const art of arts)cards.append(artCard(art,true));
+   if(!arts.length)cards.textContent='لا توجد مشاركات في هذه المجموعة حتى الآن.';
+   section.append(title,cards);grid.append(section);
   }
  }catch{statusBox.textContent='التصويت غير متاح حاليًا. لم يتم تسجيل أي صوت.'}
 }

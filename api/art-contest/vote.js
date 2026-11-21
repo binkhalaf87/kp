@@ -12,10 +12,10 @@ if(recent[0].n>=30)return json(res,429,{message:'عدد كبير من المحا
 const result=await sql`insert into contest_votes(group_id,artwork_id,voter_name,phone_hash,device_hash,ip_hash)
 select g.id,a.id,${name},${hash(phone)},${hash(dev)},${hash(ip||'unknown')}
 from contest_artworks a join contest_groups g on g.id=a.group_id
-where a.id=${id}::uuid and a.guardian_consent_at is not null and g.published=true and g.starts_at<=now() and g.ends_at>now()
+where a.id=${id}::uuid and a.guardian_consent_at is not null and g.published=true and g.starts_at<=now() and g.starts_at+interval '72 hours'>now()
 on conflict do nothing returning id`;
 if(result.length)return json(res,200,{message:'تم تسجيل صوتك بنجاح 🎨'});
-const open=await sql`select 1 from contest_artworks a join contest_groups g on g.id=a.group_id where a.id=${id}::uuid and a.guardian_consent_at is not null and g.published=true and g.starts_at<=now() and g.ends_at>now()`;
+const open=await sql`select 1 from contest_artworks a join contest_groups g on g.id=a.group_id where a.id=${id}::uuid and a.guardian_consent_at is not null and g.published=true and g.starts_at<=now() and g.starts_at+interval '72 hours'>now()`;
 if(!open.length)return json(res,409,{message:'انتهى التصويت لهذه المجموعة أو الرسمة غير متاحة'});
 return json(res,409,{message:'سبق التصويت في هذه المجموعة بهذا الرقم أو من هذا الجهاز'});
 }catch(e){console.error('vote error',e.message);return json(res,503,{message:'تعذر تسجيل الصوت حاليًا'})}}

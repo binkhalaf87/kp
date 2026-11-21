@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 create table if not exists contest_groups(
  id uuid primary key default gen_random_uuid(),number int not null unique check(number between 1 and 7),
  starts_at timestamptz not null,ends_at timestamptz not null,published boolean not null default false,
- check(ends_at=starts_at+interval '24 hours')
+ check(ends_at=starts_at+interval '72 hours')
 );
 create table if not exists contest_artworks(
  id uuid primary key default gen_random_uuid(),group_id uuid not null references contest_groups(id),
